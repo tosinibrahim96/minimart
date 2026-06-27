@@ -1,0 +1,17 @@
+[project]
+name = "minimart"
+version = "0.1.0"
+description = "MiniMart — a Docker-first FastAPI learning project"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.115",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]

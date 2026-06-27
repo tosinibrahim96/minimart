@@ -1,0 +1,10 @@
+services:
+  api:
+    build:
+      context: .
+      target: dev          # build the dev image (with tooling + reload)
+    container_name: minimart-api
+    ports:
+      - "8000:8000"        # host:container
+    volumes:
+      - .:/app             # mount the whole project: app/ AND tests/
