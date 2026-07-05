@@ -47,7 +47,20 @@ Run the completion ritual defined in CLAUDE.md, in this order:
        "symptom → why it happens → fix".
      * Add a short **"Concepts that confused me (and the plain-English answer)"** section
        capturing the conceptual Q&A (e.g. why X matters), in beginner language.
-   - Keep my house style and the high-level (not overly low-level) explanation level.
+   - **Explain beginner-first, with examples (house style — applies to every Why note,
+     Troubleshooting entry, and ESPECIALLY the "Concepts that confused me" section).** For any
+     non-obvious concept, follow this shape:
+     1. **Start from what I already know** — anchor the new idea to something familiar.
+     2. **Introduce the new idea in those same terms** — define every piece of jargon the first
+        time it appears; assume no prior knowledge.
+     3. **Show concrete, runnable examples** — examples teach better than prose; prefer a short
+        REPL snippet or tiny worked case over an abstract description.
+     4. **Add an analogy** when it makes the idea stick.
+     5. **Only then tie back** to the technical/interview framing.
+     Complexity comes LAST, not first. Being thorough and going down to fundamentals is preferred
+     over staying abstract — never wave at a concept and move on. (Model: the base-10-vs-base-2
+     "ruler" explanation of `Decimal` vs `float` — familiar ground → binary place values → worked
+     examples → ruler analogy → the interview one-liner.)
 
 6. **Show me before finishing.** Present the new tutorial and the updated checkboxes for
    my review, and briefly list which questions/confusions from the session you folded in,

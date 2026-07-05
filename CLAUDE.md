@@ -17,6 +17,13 @@ here. Shipping speed is NOT the goal; my understanding is.
 - Always give the senior framing: "here's why, and here's when you'd choose the
   alternative" — I need to defend these decisions in interviews.
 - When two approaches are reasonable, explain both and let me choose. Don't decide for me.
+- **Explain like I'm a beginner, with examples — this beats staying "high-level".** For any
+  non-obvious concept, follow this shape: (1) start from something I already know; (2) introduce
+  the new idea in those same terms, defining every piece of jargon the first time; (3) show a
+  concrete, runnable example (a REPL snippet or tiny worked case — examples over prose); (4) add
+  an analogy if it makes it stick; (5) ONLY THEN tie it back to the technical/senior/interview
+  framing. Complexity comes LAST. Go down to fundamentals rather than waving at a concept — being
+  thorough is preferred. (Model: the base-10-vs-base-2 "ruler" explanation of `Decimal` vs `float`.)
 - Be direct. Tell me plainly when I'm wrong or cargo-culting.
 
 ## Definition of Done — the completion ritual (every phase, no exceptions)
@@ -75,5 +82,7 @@ Gotchas:
 ## Conventions
 - Every endpoint gets tests, including the error paths (401/403/404/409/422).
 - One logical change per commit; conventional commit messages.
-- Do NOT add a Claude co-author trailer (`Co-Authored-By: Claude ...`) to commits.
+- Do NOT add any AI/Claude attribution anywhere: no co-author trailer
+  (`Co-Authored-By: Claude ...`) and no "Generated with Claude Code" (or similar) line in
+  commit messages, PR titles, or PR bodies. Keep all of them attribution-free.
 - Make minimal changes — don't refactor unrelated code unless I ask.
