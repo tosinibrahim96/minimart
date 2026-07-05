@@ -32,7 +32,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
 | 0 | Foundation & setup | Project shape, app lifecycle, auto-docs | ☑ |
-| 1 | Product catalog (read) | Schemas vs models, `get_db` dependency | ☐ |
+| 1 | Product catalog (read) | Schemas vs models, `get_db` dependency | ☑ |
 | 2 | Catalog (write) + filtering | Validation, pagination, filtering | ☐ |
 | 3 | Database migrations | Schema versioning with Alembic | ☐ |
 
@@ -132,10 +132,10 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | GET | `/products/{id}` | none | `200` + product | `404` |
 
 **Acceptance criteria:**
-- [ ] Listing is paginated and returns page metadata.
-- [ ] Missing id returns `404`, not `500` or empty `200`.
-- [ ] DB model and output schema are distinct.
-- [ ] No route creates its own DB session.
+- [x] Listing is paginated and returns page metadata.
+- [x] Missing id returns `404`, not `500` or empty `200`.
+- [x] DB model and output schema are distinct.
+- [x] No route creates its own DB session.
 
 **Self-check / interview questions:**
 - Give a concrete scenario where merging DB model and response schema bites you.
