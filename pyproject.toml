@@ -21,3 +21,15 @@ dev = [
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+extend-select = [
+    "W",   # pycodestyle warnings — trailing whitespace, newline-at-EOF
+    "I",   # isort — deterministic import ordering
+    "B",   # flake8-bugbear — real bug patterns
+    "UP",  # pyupgrade — modern syntax for your Python version
+    "SIM", # flake8-simplify — needless complexity
+]
