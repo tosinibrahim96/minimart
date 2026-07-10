@@ -8,7 +8,8 @@ A behaviour-driven spec for becoming **interview-ready** on FastAPI and backend 
 > - A phase is "done" only when the acceptance criteria pass **and** you can answer the self-check questions without notes. Working code you can't explain is not done — an interviewer will find the gap in two sentences.
 > - Update each phase's *Status* and tick the dashboard. Watching it fill up is the point.
 > - No code lives in this doc on purpose. The behaviour is specified; the implementation — and the struggle — is yours. That struggle is the learning.
-> - A few phases (marked 🔬) use a **build-it-wrong-first** plan: you deliberately build the naive version, reproduce the failure (oversell, N+1 query storm, stale cache), *then* fix it. Don't skip the wrong version — feeling the bug is what makes the fix and the interview story stick.
+> - A few phases (marked 🔬) use a **build-it-wrong-first** plan: you deliberately build the naive version, reproduce the failure (oversell, N+1 query storm, a frozen event loop, stale cache), *then* fix it. Don't skip the wrong version — feeling the bug is what makes the fix and the interview story stick.
+> - Two phases (marked ♻️) are **deliberate refactor phases**: the code already works, and the exercise is changing it safely with a defined end state. Refactoring working code on purpose — without breaking behaviour — is itself a senior skill this curriculum trains twice: once early with a small blast radius (Phase 4), once at the end with the test suite as a safety net (Phase 24).
 
 ---
 
@@ -33,48 +34,53 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 |---|-------|--------------|--------|
 | 0 | Foundation & setup | Project shape, app lifecycle, auto-docs | ☑ |
 | 1 | Product catalog (read) | Schemas vs models, `get_db` dependency | ☑ |
-| 2 | Catalog (write) + filtering | Validation, pagination, filtering | ☐ |
+| 2 | Catalog (write) + filtering | Validation, pagination, filtering | ☑ |
 | 3 | Database migrations | Schema versioning with Alembic | ☐ |
+| 4 | ♻️ Refactor: dependency wiring | Constructor injection, composition root | ☐ |
+| 5 | Soft deletes & SKUs | Lifecycle columns, staged migrations, constraints as guards | ☐ |
 
 ### Part B — Identity & access
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
-| 4 | Users & authentication | Hashing, OAuth2 flow, JWT | ☐ |
-| 5 | Authorization | `get_current_user`, roles/scopes | ☐ |
+| 6 | Users & authentication | Hashing, OAuth2 flow, JWT | ☐ |
+| 7 | Authorization | `get_current_user`, roles/scopes | ☐ |
 
 ### Part C — The transactional core
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
-| 6 | Cart | Relationships, per-user state | ☐ |
-| 7 | **Checkout & orders** ★ | **Transactions, race conditions, idempotency** | ☐ |
-| 8 | Query performance | The N+1 problem & eager loading | ☐ |
+| 8 | Cart | Relationships, per-user state | ☐ |
+| 9 | **Checkout & orders** ★ | **Transactions, race conditions, isolation levels, idempotency** | ☐ |
+| 10 | Query performance | N+1 & eager loading, `EXPLAIN`/indexes, connection pooling | ☐ |
 
 ### Part D — Async work & integrations
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
-| 9 | Background work | `BackgroundTasks` & its limits | ☐ |
-| 10 | Payment webhook | Inbound webhooks, signature verification, idempotency (again) | ☐ |
+| 11 | Sync vs async: the event loop | `def` vs `async def`, blocking, the threadpool | ☐ |
+| 12 | Background work | `BackgroundTasks` & its limits | ☐ |
+| 13 | Payment integration | Outbound resilience (timeouts, retries, backoff) + inbound webhooks, signatures, idempotency (again) | ☐ |
 
-### Part E — Scaling the read path
+### Part E — Scaling the read path & hardening
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
-| 11 | Caching | Cache-aside, Redis, TTL, **invalidation** | ☐ |
-| 12 | Search | Postgres full-text search & tool judgement | ☐ |
-| 13 | Rate limiting | Throttling, algorithms, `429` | ☐ |
+| 14 | Caching | Cache-aside, Redis, TTL, **invalidation** | ☐ |
+| 15 | Auth hardening | Refresh tokens, rotation, revocation (real logout) | ☐ |
+| 16 | Search | Postgres full-text search & tool judgement | ☐ |
+| 17 | Rate limiting | Throttling, algorithms, `429` | ☐ |
 
 ### Part F — Real-time
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
-| 14 | Order status over WebSocket | WebSockets, connection management | ☐ |
+| 18 | Order status over WebSocket | WebSockets, connection management | ☐ |
 
 ### Part G — Quality, operations & delivery
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
-| 15 | Testing | `pytest`, fixtures, dependency overrides | ☐ |
-| 16 | Errors, config & middleware | Exception handlers, settings, middleware vs DI | ☐ |
-| 17 | Observability | Structured logging & correlation IDs | ☐ |
-| 18 | Dockerization | Images, Compose, app + DB | ☐ |
-| 19 | CI/CD | GitHub Actions: test, lint, build, gate | ☐ |
+| 19 | Testing ★ | `pytest`, fixtures, dependency overrides | ☐ |
+| 20 | Errors, config & middleware | Exception handlers, settings, middleware vs DI | ☐ |
+| 21 | Observability | Structured logging, correlation IDs, a taste of metrics | ☐ |
+| 22 | Dockerization | Images, Compose, graceful shutdown, readiness vs liveness | ☐ |
+| 23 | CI/CD | GitHub Actions: test, lint, build, gate | ☐ |
+| 24 | ♻️ Refactor: the async data layer ★ | Async SQLAlchemy end-to-end, protected by the suite | ☐ |
 
 ---
 
@@ -84,7 +90,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 **Deliberately out of scope** (saying no is a senior trait): real payment processing (*simulate* it), recommendations, reviews, coupons, deliverability of real email, GraphQL, microservices, Kubernetes, CQRS/event-sourcing. If you feel the urge to add one, that urge is the lesson.
 
-**Suggested stack:** FastAPI, Pydantic v2 + `pydantic-settings`, SQLAlchemy 2.0, **PostgreSQL** (not SQLite — row locking in Phase 7 and full-text search in Phase 12 need a real DB), **Redis** (caching + rate limiting), Alembic (migrations), `pytest` + `httpx`, Docker + Compose, GitHub Actions. Add tooling — `ruff` (lint), `mypy` (types) — by the testing/CI phases.
+**Suggested stack:** FastAPI, Pydantic v2 + `pydantic-settings`, SQLAlchemy 2.0, **PostgreSQL** (not SQLite — row locking in Phase 9 and full-text search in Phase 16 need a real DB), **Redis** (caching + rate limiting), Alembic (migrations), `pytest` + `httpx`, Docker + Compose, GitHub Actions. Add tooling — `ruff` (lint), `mypy` (types) — by the testing/CI phases.
 
 ---
 
@@ -157,15 +163,15 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 | Method | Path | Auth | Success | Errors |
 |--------|------|------|---------|--------|
-| POST | `/products` | admin (Phase 5) | `201` | `422` |
+| POST | `/products` | admin (Phase 7) | `201` | `422` |
 | PATCH | `/products/{id}` | admin | `200` | `404`, `422` |
 | GET | `/products?category=&min_price=&max_price=` | none | `200` | `422` |
 
 **Acceptance criteria:**
-- [ ] Bad body → `422` with detail you didn't hand-write.
-- [ ] Create returns `201`, not `200`.
-- [ ] Input and output schemas are different classes.
-- [ ] Filtering composes with pagination.
+- [x] Bad body → `422` with detail you didn't hand-write.
+- [x] Create returns `201`, not `200`.
+- [x] Input and output schemas are different classes.
+- [x] Filtering composes with pagination.
 
 **Self-check / interview questions:**
 - What fields differ between create-input and response schemas, and why?
@@ -177,7 +183,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 **Learning objective:** version-control your database schema and evolve it safely, without dropping data.
 
-**Why it matters:** In a real job you *never* `DROP TABLE` to add a column — you migrate. "How do you handle schema changes in production?" is a near-guaranteed interview question, and "I ran migrations with Alembic, reviewed the autogenerated diff, and made sure it was backward-compatible for zero-downtime deploys" is a senior answer. Introduce this now, because adding users next (Phase 4) is your first real schema change — feel the pain, then solve it properly.
+**Why it matters:** In a real job you *never* `DROP TABLE` to add a column — you migrate. "How do you handle schema changes in production?" is a near-guaranteed interview question, and "I ran migrations with Alembic, reviewed the autogenerated diff, and made sure it was backward-compatible for zero-downtime deploys" is a senior answer. Introduce this now: Phase 5's `deleted_at` and `sku` columns are your first real schema changes (including a staged backfill on a populated table), and the users table arrives in Phase 6 right behind them — feel the pain, then solve it properly.
 
 **Functional requirements:**
 - Alembic manages the schema. From this phase on, **every** schema change goes through a migration — no manual table edits.
@@ -197,9 +203,71 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 ---
 
+## Phase 4 — ♻️ Refactor: dependency wiring (the composition root)
+
+**Learning objective:** class-level dependency injection — constructor injection, provider functions, and the **composition root** — plus the discipline of refactoring working code deliberately, with a defined end state and unchanged behaviour.
+
+**Why it matters (pillars 1 & 3):** The earlier phases taught request-level DI (`get_db`); this phase completes the picture one level down. A service that *constructs* its own repositories is coupled to their constructors (every signature change ripples through the codebase) and cannot be unit-tested without monkeypatching. Constructor injection fixes both — and it's what makes Phase 19's "test a service with fakes, no DB, no patching" possible. This is also the first ♻️ refactor phase on purpose: the blast radius is still tiny (two services), so you learn the *habit* of safe refactoring before the stakes rise. (Origin story and full mental model: `tutorials/guides/dependency-injection-wiring.md`.)
+
+**Functional requirements:**
+- Services declare their collaborators (repositories, session) as **constructor parameters**; no service constructs its own repository anywhere.
+- Small **provider functions** (per domain, in `dependencies.py` or at the top of the router module) act as the composition root; they are the *only* place any repository or service is constructed.
+- Routers keep declaring exactly one dependency — the service — and never see repositories.
+- Behaviour is unchanged: every endpoint responds identically before and after the refactor.
+
+**Acceptance criteria:**
+- [ ] Grepping service files for `Repository(` finds nothing — services receive, never build.
+- [ ] Each repository and service class is constructed in exactly **one** provider function.
+- [ ] Thought experiment passes: adding a parameter to any repository's constructor would touch exactly one file.
+- [ ] All endpoints verified to behave identically pre/post refactor (manual for now; the Phase 19 suite guards this permanently later).
+
+**Self-check / interview questions:**
+- FastAPI caches each dependency per request. Why is that caching a *correctness* requirement for your service-owned transaction boundary, not just an optimisation? (What would two sessions in one request do to `with db.begin()`?)
+- What exactly does constructor injection buy you in Phase 19 that self-construction can't?
+- When is plain inline construction the *right* call, and why isn't a DI container/auto-wiring library ever the answer in FastAPI?
+
+---
+
+## Phase 5 — Catalog data lifecycle: soft deletes & SKUs
+
+**Learning objective:** columns that carry business meaning — lifecycle (`deleted_at`) and identity (`sku`) — the constraints that guard them (partial unique indexes), and the **staged, backfilling migration** that adds a required unique column to a table that already has rows.
+
+**Why it matters (pillar 2):** "How do you delete data without destroying history?" and "what identifies a product besides your database id?" are day-one production modelling questions. Soft deletes preserve referential history (orders must survive their product being removed from the store) but tax every read query forever — choosing them means engineering for that tax, not just adding a column. And the SKU backfill is Phase 3's "staged migration" self-check answer turned into something you actually did.
+
+**Functional requirements:**
+- **Soft delete:** a nullable `deleted_at` timestamp on products (NULL = alive). `DELETE /products/{id}` sets it and returns `204`. A soft-deleted product returns `404` on fetch and disappears from lists and (later) search — deleted means *behaves deleted*. The row stays; future orders history stays intact.
+- `deleted_at` is a **timestamp, not a boolean** — it must answer *when*, enabling audits and retention/purge jobs later.
+- `is_active` **stays and keeps a distinct meaning** ("merchant hid it — business state, merchant-reversible") vs `deleted_at` ("lifecycle — it's gone from the store"). Two concepts, two columns; document the distinction.
+- Read-path filtering (`deleted_at IS NULL`) is enforced **centrally in the repository layer** — one enforcement point, not a condition sprinkled per query.
+- **SKU:** unique, required, immutable after creation. **Hybrid assignment:** the client may supply one; the *service* generates one when absent. PATCH must not change it.
+- Duplicate SKU → `409`, produced by catching `IntegrityError` and **discriminating by constraint name** — with two constraints able to fire on one insert (category FK, SKU uniqueness), a blanket catch would mislabel errors.
+- Uniqueness is a **partial unique index**: `UNIQUE (sku) WHERE deleted_at IS NULL` — a deleted product frees its SKU for reuse.
+- The migration adding `sku` to the populated products table is **staged**: add nullable → backfill existing rows → set `NOT NULL` + add the index.
+
+| Method | Path | Auth | Success | Errors |
+|--------|------|------|---------|--------|
+| DELETE | `/products/{id}` | admin (Phase 7) | `204` | `404` |
+| POST | `/products` (with/without `sku`) | admin (Phase 7) | `201` | `409` duplicate sku, `422` |
+
+**Acceptance criteria:**
+- [ ] Deleting a product: `204`; then `404` on fetch, absent from lists — but the row is still in the DB with `deleted_at` set.
+- [ ] `is_active` and `deleted_at` coexist with documented, distinct meanings.
+- [ ] `sku` added via a staged migration (nullable → backfill → NOT NULL), no data loss, and `downgrade` works.
+- [ ] POST without a `sku` gets a generated one; POST with a duplicate `sku` → `409`, and it cannot be confused with the category-`422` (constraint-name discrimination proven).
+- [ ] Delete a product, then create a new one reusing its SKU → succeeds (partial index proven).
+- [ ] PATCH attempting to change `sku` is rejected.
+
+**Self-check / interview questions:**
+- Why a timestamp over a boolean for soft deletes? And why keep `id` as the primary key and FK target when `sku` is unique (surrogate vs natural key)?
+- Why can't a required unique column be added to a populated table in one migration step? Walk the stages and what each protects.
+- What breaks if *one* repository query forgets `deleted_at IS NULL`, and what *structurally* prevents that in your codebase?
+- What would a plain (non-partial) unique index on `sku` do to your soft-delete story?
+
+---
+
 # PART B — Identity & access
 
-## Phase 4 — Users & authentication
+## Phase 6 — Users & authentication
 
 **Learning objective:** authentication done properly — password hashing, the OAuth2 password flow, JWT issuance, and the statelessness tradeoff.
 
@@ -224,11 +292,11 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 **Self-check / interview questions:**
 - Why hash *and salt* — what attack does the salt defeat?
-- An account is compromised and you must log it out *now*. With stateless JWTs, what can't you easily do, and what are the options (short expiry + refresh tokens, a denylist)?
+- An account is compromised and you must log it out *now*. With stateless JWTs, what can't you easily do, and what are the options (short expiry + refresh tokens, a denylist)? You'll *build* the answer in Phase 15.
 
 ---
 
-## Phase 5 — Authorization & protected routes
+## Phase 7 — Authorization & protected routes
 
 **Learning objective:** the payoff of DI — `get_current_user` as a dependency — plus role/scope-based access control.
 
@@ -237,7 +305,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 **Functional requirements:**
 - `get_current_user` validates the JWT and loads the user; protected routes declare it.
 - `GET /me` returns the current user.
-- Admin-only actions (Phase 2 writes) are guarded by a role check built *on top of* `get_current_user`.
+- Admin-only actions (Phase 2 writes, Phase 5 delete) are guarded by a role check built *on top of* `get_current_user`.
 - No token → `401`; valid token, wrong role → `403`.
 
 | Method | Path | Auth | Success | Errors |
@@ -258,7 +326,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 # PART C — The transactional core
 
-## Phase 6 — Cart
+## Phase 8 — Cart
 
 **Learning objective:** modelling relationships and per-user state; the first real service-layer muscle.
 
@@ -281,16 +349,18 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 - [ ] Two users have fully independent carts; A can never read B's.
 - [ ] Cart logic lives in a service, not the route.
 - [ ] Adding a nonexistent product → `404`.
+- [ ] Adding a soft-deleted product → `404` (Phase 5's filtering holds here too).
 
 **Self-check / interview questions:**
 - Where exactly did you draw the route-vs-service line, and why there?
 - Why can't the cart-time stock check be the final word on inventory?
+- How do your services acquire their repositories, and what would it cost to change a repository's constructor? (See `tutorials/guides/dependency-injection-wiring.md`.)
 
 ---
 
-## Phase 7 — Checkout & orders ★ the senior-maker
+## Phase 9 — Checkout & orders ★ the senior-maker
 
-**Learning objective:** database transactions, the service layer for real, and the two ideas worth more than every other phase combined — **concurrency/race conditions** and **idempotency**.
+**Learning objective:** database transactions, the service layer for real, and the two ideas worth more than every other phase combined — **concurrency/race conditions** and **idempotency** — plus the vocabulary underneath them: **transaction isolation levels**.
 
 **Why it matters (pillar 2):** This is the line between "knows FastAPI" and "can be trusted with production." Two customers buy the last unit at once — do you oversell? A customer's request is retried — do you double-charge? These transfer to every backend you'll ever build. Slow down here. Struggle here on purpose.
 
@@ -314,6 +384,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
   - **Concurrency-safe:** two checkouts racing for the last unit → exactly one `201`, the other a clean `409`, never an oversell and never a `500`. (Use row locking — `SELECT ... FOR UPDATE` — or an atomic conditional update; understand both.)
   - **Idempotent:** accepts an `Idempotency-Key`; replaying it returns the *same* order, never a second one.
 - Orders have a status (`pending → paid → shipped → delivered`), listable/fetchable by their owner.
+- **Know your isolation level:** find out what level your transactions actually run at (Postgres default: `READ COMMITTED`) and observe in `psql` what one transaction can see of another's work.
 
 | Method | Path | Auth | Success | Errors |
 |--------|------|------|---------|--------|
@@ -330,31 +401,33 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 >
 > **Act 3 — Close the window.** Fix it two ways and understand both: **pessimistic** (`SELECT ... FOR UPDATE` locks the row so the second request waits), and **atomic conditional update** (a single `UPDATE ... SET stock = stock - q WHERE stock >= q` that lets the database arbitrate, succeeding for exactly one). Re-run Act 2's script: exactly one `201`, one `409`, stock never negative.
 >
-> **Act 4 — Prove it (the senior part).** In Phase 15 you turn Act 2's script into a permanent **concurrency test** that asserts no oversell. Most candidates *talk* about race conditions; you'll have a test that demonstrates you can reproduce and prevent one.
+> **Act 4 — Prove it (the senior part).** In Phase 19 you turn Act 2's script into a permanent **concurrency test** that asserts no oversell. Most candidates *talk* about race conditions; you'll have a test that demonstrates you can reproduce and prevent one.
 
 **Acceptance criteria:**
 - [ ] **Act 1 done:** a naive check-then-act checkout exists.
 - [ ] **Act 2 done:** you reproduced an oversell with concurrent requests (widening the window if needed) and saw stock go negative.
-- [ ] Stock = 1, two simultaneous checkouts → exactly one `201`, one `409`; total sold = 1, never 2. (Phase 15 makes you *prove* this.)
+- [ ] Stock = 1, two simultaneous checkouts → exactly one `201`, one `409`; total sold = 1, never 2. (Phase 19 makes you *prove* this.)
 - [ ] A forced mid-transaction failure leaves the DB exactly as before — no order row, no stock decrement.
 - [ ] Replaying with the same `Idempotency-Key` returns the original order; the order count does not increase.
 - [ ] Order total is recomputed server-side; tampering with a client-sent price has no effect.
 - [ ] A user can't fetch another user's order (`403`/`404`).
+- [ ] In one `psql` experiment (two terminals) you observed what `READ COMMITTED` lets a second transaction see, and you can state *why* the oversell is possible at that level.
 
 **Self-check / interview questions:**
 - Trace two racing requests through your code. *Where* is the oversell window, and how does your lock/atomic update close it?
 - Optimistic vs pessimistic locking — which did you use, and when is the other better?
 - Why must the idempotency key be client-generated, not server-generated?
+- Name Postgres's isolation levels. At `READ COMMITTED`, what exactly did each racing transaction *see* that made the oversell possible? Would `SERIALIZABLE` have prevented it without explicit locks — and what new failure mode (serialization errors + retry loops) would that buy you?
 
 ---
 
-## Phase 8 — Query performance: the N+1 problem
+## Phase 10 — Query performance: N+1, indexes & the connection pool
 
-**Learning objective:** recognise and fix the **N+1 query problem** — the most common ORM performance bug, and a near-guaranteed interview topic.
+**Learning objective:** the three ways a correct data layer gets slow — the **N+1 query problem**, **missing indexes** (read the plan with `EXPLAIN ANALYZE`), and an exhausted **connection pool** — and how to *witness* each before fixing it.
 
-**Why it matters:** It's the single clearest tell between a junior and senior ORM user. N+1 is invisible until you look at the actual SQL your ORM emits — so the only way to learn it is to *build it wrong on purpose, witness it, then fix it.* You can't appreciate the fix until you've felt the problem.
+**Why it matters:** These are the clearest tells between a junior and a senior ORM/DB user, and all three are invisible until you look beneath the ORM: at the SQL emitted, the plan Postgres chose, and the pool the session borrowed from. "This query is slow — what do you do?" and "what happens when you run out of DB connections?" are near-guaranteed interview questions, and the only durable way to learn them is to build it wrong on purpose, witness it, then fix it.
 
-> ### 🔬 Build-it-wrong-first plan
+> ### 🔬 Build-it-wrong-first plan — Part 1: the N+1
 > This phase is deliberately structured so the bug lives in your app before you hunt it. Do not skip Act 1 — the naive version is a *required deliverable*, not a mistake.
 >
 > **Act 1 — Build it naive (don't optimise).** Implement `GET /orders` the obvious, innocent way: fetch the user's orders, then loop over them and access each order's `items`. This is the code everyone writes first and it looks completely reasonable. With SQLAlchemy's default lazy-loading, touching `order.items` inside the loop quietly fires a fresh query *every iteration*.
@@ -363,29 +436,68 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 >
 > **Act 3 — Fix it and compare.** Rewrite the query with eager loading (`selectinload` or `joinedload`) so the items come back in a constant number of queries regardless of order count. Hit the same endpoint; watch 101 drop to 1–2. The before/after in *your own logs* is the whole lesson — and the exact story you'll tell in an interview.
 >
-> **Act 4 — Lock it in (the senior part).** In Phase 15 you'll write a test that **counts the queries** a request makes and asserts it stays under a threshold, so the N+1 can never silently creep back. "I assert query counts in my test suite" is a genuinely impressive thing to say, because most people don't.
+> **Act 4 — Lock it in (the senior part).** In Phase 19 you'll write a test that **counts the queries** a request makes and asserts it stays under a threshold, so the N+1 can never silently creep back. "I assert query counts in my test suite" is a genuinely impressive thing to say, because most people don't.
 
 **Two things to understand while you're in it (interviewers probe here):**
 - **Lazy-loading is a feature, not a bug.** The ORM helpfully fetches related data only when you touch it — convenient right up until you touch it in a loop. The fix isn't "never lazy-load"; it's "load eagerly when you know you'll need the relationship across a collection."
 - **`selectinload` vs `joinedload`.** Roughly: `joinedload` pulls everything in one big `JOIN` (good for one-to-one or small sets, but can balloon rows and duplicate parent data on one-to-many), while `selectinload` runs a second query with an `IN` clause (usually better for one-to-many collections like order→items). Reasoning about *that tradeoff*, not just naming the functions, is what reads as senior.
 
+> ### 🔬 Part 2: read the plan (`EXPLAIN ANALYZE` & B-tree indexes)
+> Seed a few thousand products. In `psql`, run `EXPLAIN ANALYZE` on your Phase 2 filter query (`WHERE category_id = … AND price BETWEEN …`) and read the plan: **Seq Scan** — Postgres reads every row. Add a B-tree index (via a migration — every schema change migrates) and watch the same query flip to an **Index Scan**. Then go one step further: try a **composite index** matching your commonest filter combination, and check whether Postgres actually uses it. Finally, articulate the cost: every index slows every write and takes space — which is why you don't index every column.
+
+> ### 🔬 Part 3: exhaust the pool
+> Every request borrows a DB connection from SQLAlchemy's **pool**; the pool is finite. Shrink it deliberately (`pool_size=2`, small `max_overflow`), add a temporarily slow endpoint (or a `pg_sleep` query), and fire many concurrent requests. Witness what happens: requests queue waiting for a connection, then `TimeoutError`. This is one of the most common real production incidents. Reason about sizing (pool × workers vs Postgres `max_connections`) and know the name **PgBouncer** for when many app processes multiply the problem.
+
 **Acceptance criteria:**
-- [ ] **Act 1 done:** a naive `GET /orders` exists and (temporarily) exhibits the N+1.
-- [ ] **Act 2 done:** you can show the *before* — query count scaling as 1+N in the logs (demonstrate at 10 and 100 orders).
-- [ ] **Act 3 done:** the *after* — a constant, small query count regardless of N.
+- [ ] **N+1 Act 1 done:** a naive `GET /orders` exists and (temporarily) exhibits the N+1.
+- [ ] **N+1 Act 2 done:** you can show the *before* — query count scaling as 1+N in the logs (demonstrate at 10 and 100 orders).
+- [ ] **N+1 Act 3 done:** the *after* — a constant, small query count regardless of N.
 - [ ] You can explain `selectinload` vs `joinedload` and when each wins.
-- [ ] **Act 4 (in Phase 15):** a query-count test guards the endpoint against regression.
+- [ ] **N+1 Act 4 (in Phase 19):** a query-count test guards the endpoint against regression.
+- [ ] Captured before/after `EXPLAIN ANALYZE` plans for a filtered catalog query: Seq Scan → Index Scan, with the index added via a migration.
+- [ ] Reproduced pool exhaustion with a deliberately tiny pool, and you can explain the queue-then-timeout behaviour and the sizing tradeoff.
 
 **Self-check / interview questions:**
 - Why does ORM lazy-loading cause N+1 in the first place?
 - When is `joinedload` (one big JOIN) worse than `selectinload` (a second `IN` query)?
 - How would you *catch* an N+1 before it reaches production?
+- What does `Seq Scan` in a query plan tell you, and why not simply index every column?
+- A request can't get a connection from the pool — what happens, which settings decide, and how do you size a pool across multiple workers?
 
 ---
 
 # PART D — Async work & integrations
 
-## Phase 9 — Background work (order confirmation email)
+## Phase 11 — Sync vs async: the event loop 🔬
+
+**Learning objective:** how FastAPI actually runs your code — the **event loop**, the **threadpool**, `def` vs `async def` — and what "blocking" concretely means.
+
+**Why it matters:** This is the single most-asked FastAPI interview topic, and most users of the framework cannot answer it. FastAPI is async-first, but this project's data layer is deliberately synchronous — and that combination is *safe*, for a reason you must be able to state precisely. One wrongly-placed blocking call inside an `async def` route freezes *every* request on the server; knowing why — and the three ways out — is the difference between using the framework and understanding it. (This phase is concepts-first; the full async conversion of the data layer is Phase 24, once the test suite exists to protect it.)
+
+> ### 🔬 Build-it-wrong-first plan (freeze the whole server)
+> **Act 1 — Build it wrong.** Add a temporary endpoint as `async def` containing a *synchronous* `time.sleep(5)` (standing in for any blocking call: a sync HTTP request, a heavy computation, a sync DB query).
+>
+> **Act 2 — Witness it.** While that endpoint sleeps, hit `GET /health` from another terminal: **it hangs too.** One request froze the entire server — every user, every endpoint. Now understand why: `async def` routes run *on the event loop itself*, a single thread that juggles thousands of requests by never waiting; a blocking call stops the juggler mid-juggle.
+>
+> **Act 3 — Fix it three ways, and understand each.** (a) Declare the route as plain `def` — FastAPI runs sync routes in a **threadpool**, so blocking is contained to one thread; (b) make the work genuinely async (`await asyncio.sleep`, an async HTTP client) so the loop keeps juggling; (c) keep `async def` but offload the blocking call explicitly (`run_in_threadpool` / `asyncio.to_thread`). Re-run Act 2 after each: `/health` stays responsive.
+>
+> **Act 4 — Apply it to your own app.** State precisely why every route in this project is safe today (they're `def` → threadpool → sync SQLAlchemy blocks a worker thread, never the loop), and find the ceiling that protection has (the threadpool's default ~40 threads caps concurrent in-flight requests).
+
+**Acceptance criteria:**
+- [ ] **Act 1–2 done:** reproduced the freeze — a sync sleep in an `async def` route visibly hangs `GET /health`.
+- [ ] **Act 3 done:** fixed all three ways; each verified to keep `/health` responsive; you can say when each fix is the right one.
+- [ ] You can state precisely why this project's `def` routes + sync SQLAlchemy don't block the loop, and name the threadpool ceiling that comes with it.
+- [ ] In writing: your rules for choosing `def` vs `async def` for any new endpoint.
+
+**Self-check / interview questions:**
+- Explain the event loop in one paragraph a junior would understand.
+- Why doesn't `async` make CPU-bound work faster? What *does* it make better, and under what workload?
+- A teammate declares every route `async def` "for performance" while calling the sync DB — what happens under load, and why is it *worse* than plain `def`?
+- Where do your Phase 9 row locks sit relative to all this — does async change what the *database* serialises?
+
+---
+
+## Phase 12 — Background work (order confirmation email)
 
 **Learning objective:** `BackgroundTasks` for fire-and-forget work — and, more importantly, its limits.
 
@@ -402,17 +514,23 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 **Self-check / interview questions:**
 - The server crashes one millisecond after the response but before the task runs. What happens to the email? How does a durable queue change that?
 - What belongs in `BackgroundTasks`, and what should move to a queue?
+- What is the **transactional outbox pattern**, and which exact failure of "commit the order, then schedule the email" does it close? (Describe only — building it is out of scope.)
 
 ---
 
-## Phase 10 — Payment webhook
+## Phase 13 — Payment integration: outbound resilience & the inbound webhook
 
-**Learning objective:** handle an *inbound* webhook from a (simulated) payment provider — inversion of control, signature verification, and idempotency reinforced from a second angle.
+**Learning objective:** both directions of talking to another system. **Outbound:** calling a flaky external service like an adult — explicit timeouts, retries with exponential backoff + jitter, idempotency keys *sent* (Phase 9's concept pointed outward), circuit breaking described. **Inbound:** handling a webhook — inversion of control, signature verification, and idempotency reinforced from a second angle.
 
-**Why it matters:** Webhooks are everywhere (Stripe, GitHub, Slack). They flip the direction of control — the provider calls *you*, unprompted — which forces three senior skills: trusting an unauthenticated inbound call only after **verifying a signature**, processing **idempotently** (providers retry webhooks aggressively), and returning the right status so the provider knows whether to retry. Doing idempotency *twice*, in two different shapes, is exactly why this is here — the concept will stick.
+**Why it matters:** Webhooks are everywhere (Stripe, GitHub, Slack), and so are outbound calls to services that hang, flap, and fail — that's half of distributed systems in practice. An outbound call with no timeout hangs your worker when the provider slows down; retries without backoff DDoS your own vendor; retries without an idempotency key double-charge your customer. Inbound, the provider calls *you*, unprompted — so you trust nothing without **verifying a signature**, you process **idempotently** (providers retry aggressively), and you return the status code that tells them whether to retry. Doing idempotency in two shapes — sending the key outbound, honouring event ids inbound — is exactly why this phase exists: the concept will stick.
 
 **Functional requirements:**
-- An endpoint the "provider" calls to confirm payment for an order.
+- **Outbound:** checkout (or a payment-initiation step) makes a real `httpx` call to the simulated provider, with:
+  - an **explicit timeout** — a hanging provider must not hang your request handling indefinitely;
+  - **retries with exponential backoff + jitter**, on transient failures only (timeouts, `5xx`) — never on `4xx`;
+  - an **`Idempotency-Key` header sent**, so *your* retries are safe on the provider's side;
+  - a **circuit breaker** understood and described (not necessarily built): after N consecutive failures, stop calling and fail fast — retrying into an outage makes it worse (retry storm).
+- **Inbound:** an endpoint the "provider" calls to confirm payment for an order.
 - **Verify a signature** (HMAC over the payload with a shared secret) before trusting anything; reject invalid signatures.
 - Process **idempotently**: the same provider event id is applied at most once, even if delivered repeatedly.
 - On success, transition the order to `paid`.
@@ -423,21 +541,27 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | POST | `/webhooks/payments` | signature | `200` | `400`/`401` bad signature |
 
 **Acceptance criteria:**
+- [ ] The outbound call has an explicit timeout; with the provider deliberately hanging, your request fails fast instead of hanging.
+- [ ] Transient provider failures (timeout/`5xx`) are retried with backoff; a `4xx` is not retried.
+- [ ] The outbound request carries an idempotency key.
+- [ ] You can describe a circuit breaker and explain a retry storm.
 - [ ] An invalid/missing signature is rejected; the order is *not* touched.
 - [ ] Replaying the same event applies it once; the order doesn't flip twice or double-anything.
 - [ ] A valid event moves the order to `paid`.
 - [ ] Your status codes distinguish "handled, stop retrying" from "transient, please retry."
 
 **Self-check / interview questions:**
+- Why must *every* outbound call have a timeout — what exactly happens to your server, thread by thread, when the provider slows down and you have none?
+- Why never retry a `400`? Why add jitter to backoff?
 - Why verify the signature — what attack does an unverified webhook endpoint invite?
 - Why *must* webhook processing be idempotent, given how providers behave?
 - What do you return on a duplicate event, and why does that choice matter to the provider?
 
 ---
 
-# PART E — Scaling the read path
+# PART E — Scaling the read path & hardening
 
-## Phase 11 — Caching (Redis)
+## Phase 14 — Caching (Redis)
 
 **Learning objective:** the **cache-aside** pattern with Redis, TTLs, graceful degradation, and the genuinely hard part — **cache invalidation**.
 
@@ -450,14 +574,14 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 >
 > **Act 2 — Witness the staleness.** As admin, update a product's price. Now read it again — and watch your API cheerfully return the *old* price from the cache. This is the bug that causes real incidents ("why is the site showing the wrong price?"), and seeing your own code do it is the lesson.
 >
-> **Act 3 — Invalidate on write.** Make product update/delete invalidate (or refresh) the affected cache entries, so the next read reflects the change. Re-run Act 2: the new price appears immediately. Now reason about the edges — what about the *list* cache, not just the detail entry? (Invalidating related keys is where it gets genuinely hard.)
+> **Act 3 — Invalidate on write.** Make product update/delete invalidate (or refresh) the affected cache entries, so the next read reflects the change. Re-run Act 2: the new price appears immediately. Now reason about the edges — what about the *list* cache, not just the detail entry? (Invalidating related keys is where it gets genuinely hard.) Remember Phase 5: a *soft delete* is a write too — the cached detail entry must die with the product.
 >
 > **Act 4 — Harden (the senior part).** Stop Redis entirely and hit the API — it must **degrade gracefully** to the DB, not `500`. Then reason about a **cache stampede**: when a hot key expires and 1,000 requests all miss at once and hammer the DB. Note the mitigations (a short lock, staggered TTLs, background refresh). You don't have to fully build stampede protection, but being able to describe it is the interview payoff.
 
 **Acceptance criteria:**
 - [ ] **Act 1 done:** repeated reads are served from cache (observable: fewer DB queries / faster responses).
 - [ ] **Act 2 done:** you reproduced stale data — an updated product still read the old value from cache before invalidation existed.
-- [ ] **Act 3 done:** after an admin update, the next read reflects the change — no stale data (detail *and* list).
+- [ ] **Act 3 done:** after an admin update, the next read reflects the change — no stale data (detail *and* list, and soft-deleted products vanish from cache too).
 - [ ] **Act 4 done:** with Redis down, the API still serves correct data from the DB, and you can describe a stampede mitigation.
 
 **Self-check / interview questions:**
@@ -467,7 +591,41 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 ---
 
-## Phase 12 — Search (Postgres full-text search)
+## Phase 15 — Auth hardening: refresh tokens & real logout
+
+**Learning objective:** complete the JWT story you started in Phase 6 — short-lived access tokens, a **refresh-token flow with rotation**, and **revocation via a Redis denylist**. Statelessness was a tradeoff; this is where you buy back the part you gave up.
+
+**Why it matters (pillar 1):** "So how *do* you log out a stateless JWT?" is the single most reliable auth follow-up in interviews. Phase 6 taught you to *say* the answer (short expiry + refresh tokens + a denylist); this phase makes you *build* it — and it reuses the Redis you stood up in Phase 14, so the marginal cost is low. It also forces a real security judgement call: what does your API do when Redis — now part of your auth path — is down?
+
+**Functional requirements:**
+- Access tokens become **short-lived** (e.g. ~15 minutes). `POST /auth/login` now returns an access token *and* a longer-lived **refresh token**.
+- `POST /auth/refresh` exchanges a valid refresh token for a new access token — no password re-entry.
+- **Rotation:** each refresh use issues a *new* refresh token and invalidates the old one; presenting an already-used refresh token is rejected (and, ideally, revokes the whole family — describe this even if you don't build it).
+- `POST /auth/logout` revokes the current tokens via a **Redis denylist**, with each entry's TTL equal to the token's *remaining* lifetime (so the denylist cleans itself up).
+- The auth dependency (`get_current_user`) checks the denylist; a revoked-but-unexpired access token is rejected.
+- **Decide and implement the Redis-down failure mode deliberately** — fail open (accept tokens unchecked) vs fail closed (reject all auth) — and be able to defend the choice.
+
+| Method | Path | Auth | Success | Errors |
+|--------|------|------|---------|--------|
+| POST | `/auth/refresh` | refresh token | `200` + new tokens | `401` invalid/reused |
+| POST | `/auth/logout` | logged-in | `204` | `401` |
+
+**Acceptance criteria:**
+- [ ] An expired access token → `401`; the refresh flow issues a new one without re-login.
+- [ ] After logout, the *still-unexpired* access token is rejected — you demonstrably revoked a stateless JWT.
+- [ ] Refresh-token reuse is detected and rejected (rotation works).
+- [ ] Denylist entries expire with their tokens (no unbounded growth — prove it with a TTL check in `redis-cli`).
+- [ ] Redis down: your chosen failure mode happens *on purpose*, and you can defend it.
+
+**Self-check / interview questions:**
+- What did statelessness buy you in Phase 6, and exactly how much of it did this phase spend to get revocation back?
+- Why rotate refresh tokens — what attack does detecting *reuse* of an old one reveal?
+- Fail open vs fail closed when the denylist store is down — argue both sides, then commit.
+- Why does every denylist entry need a TTL?
+
+---
+
+## Phase 16 — Search (Postgres full-text search)
 
 **Learning objective:** real full-text search in Postgres — and the *judgement* of when the database is enough versus when you'd reach for a dedicated engine.
 
@@ -477,6 +635,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 - Search products by name/description using Postgres **full-text search** (`tsvector`/`tsquery`), **not** `LIKE '%term%'`.
 - Rank results by relevance.
 - Add a GIN index (via a migration — reinforcing Phase 3) so search stays fast as the catalog grows.
+- Soft-deleted products (Phase 5) never appear in results.
 
 | Method | Path | Auth | Success |
 |--------|------|------|---------|
@@ -485,19 +644,20 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 **Acceptance criteria:**
 - [ ] Search returns relevant, ranked results via FTS, not naive `LIKE`.
 - [ ] A GIN index backs the search, added through a migration.
+- [ ] A soft-deleted product does not appear in search results.
 
 **Self-check / interview questions:**
 - Why is `LIKE '%term%'` slow and non-scalable?
-- When would you move from Postgres FTS to Elasticsearch/OpenSearch — what does the dedicated engine buy you?
+- When would you move from Postgres FTS to Elasticsearch/OpenSearch — what does the dedicated engine buy you, and what new problem (a second copy of your data that can go stale) does it create?
 - What does a GIN index actually do?
 
 ---
 
-## Phase 13 — Rate limiting
+## Phase 17 — Rate limiting
 
 **Learning objective:** protect endpoints from abuse, learn the common throttling algorithms, and return the right thing when a client exceeds the limit.
 
-**Why it matters:** A real production concern (brute-force on login, abuse of checkout) and a frequent interview topic. It also reuses the Redis you stood up in Phase 11, so the marginal cost is low and the payoff high.
+**Why it matters:** A real production concern (brute-force on login, abuse of checkout) and a frequent interview topic. It also reuses the Redis you stood up in Phase 14, so the marginal cost is low and the payoff high.
 
 **Functional requirements:**
 - Limit requests per client (by IP and/or user) on sensitive endpoints (login, checkout, webhook).
@@ -518,11 +678,11 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 # PART F — Real-time
 
-## Phase 14 — Order status over WebSocket
+## Phase 18 — Order status over WebSocket
 
 **Learning objective:** WebSockets — persistent, bidirectional connections — and connection-lifecycle management.
 
-**Why it matters:** The real-time feature you wanted, placed late on purpose: genuinely useful here (push order status as it changes) but a smaller slice of "senior" than the data layer. The real skill is managing connections — authenticating the socket and cleaning up on disconnect.
+**Why it matters:** The real-time feature you wanted, placed late on purpose: genuinely useful here (push order status as it changes) but a smaller slice of "senior" than the data layer. The real skill is managing connections — authenticating the socket and cleaning up on disconnect. (Note: WebSocket handlers are natively `async` — your Phase 11 event-loop understanding is load-bearing here.)
 
 **Functional requirements:**
 - A client opens a WebSocket and subscribes to updates for an order it owns (authenticate the connection).
@@ -542,21 +702,23 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 # PART G — Quality, operations & delivery
 
-## Phase 15 — Testing ★ pillar three
+## Phase 19 — Testing ★ pillar three
 
 **Learning objective:** `pytest`, fixtures, the `httpx` test client, and the killer feature — **dependency overrides**.
 
-**Why it matters (pillar 3):** This is where DI's value becomes undeniable and where "senior" is most clearly earned. FastAPI lets you override *any* dependency in tests — swap the real DB for a test DB, swap `get_current_user` for a fake user — via `app.dependency_overrides`. A suite you trust is what lets you refactor fearlessly.
+**Why it matters (pillar 3):** This is where DI's value becomes undeniable and where "senior" is most clearly earned. FastAPI lets you override *any* dependency in tests — swap the real DB for a test DB, swap `get_current_user` for a fake user — via `app.dependency_overrides`. A suite you trust is what lets you refactor fearlessly — and Phase 24 will put that claim to the test, literally.
 
 **Functional requirements:**
 - Tests cover behaviour, not just `200`s: validation failures, auth failures, the `403`/`404`/`409` paths.
 - The DB dependency is overridden with a test database.
 - `get_current_user` is overridden to test protected routes without logging in each time.
-- **Targeted tests for the hard phases:** a concurrency test proving no oversell (Phase 7); an idempotency-replay test (Phases 7 & 10); a **query-count assertion** catching N+1 (Phase 8); a webhook signature-rejection test (Phase 10); a cache-behaviour test (Phase 11); a rate-limit test (Phase 13).
+- At least one service is unit-tested **with fake repositories, no DB at all** — the Phase 4 constructor-injection payoff, collected.
+- **Targeted tests for the hard phases:** a concurrency test proving no oversell (Phase 9); an idempotency-replay test (Phases 9 & 13); a **query-count assertion** catching N+1 (Phase 10); a webhook signature-rejection test (Phase 13); a soft-delete behaviour test and a SKU-reuse-after-delete test (Phase 5); a revoked-token test (Phase 15); a cache-behaviour test (Phase 14); a rate-limit test (Phase 17).
 
 **Acceptance criteria:**
 - [ ] The full suite runs with one command, independent of any real/dev database.
 - [ ] At least one test overrides `get_current_user`; at least one overrides the DB.
+- [ ] At least one service-level unit test uses fake repositories and never touches Postgres.
 - [ ] The concurrency test proves exactly one of two racing checkouts wins.
 - [ ] A test fails if an N+1 regression reappears (query count asserted).
 - [ ] Error paths (`401`/`403`/`404`/`409`/`422`/`429`) are covered, not only success.
@@ -564,20 +726,21 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 **Self-check / interview questions:**
 - Why is `app.dependency_overrides` only possible *because* you used DI instead of a global session?
 - What makes a test flaky, and how do you keep the concurrency test deterministic enough to trust?
+- Which tests were only possible because services receive their repositories (Phase 4) instead of building them?
 
 ---
 
-## Phase 16 — Errors, configuration & middleware
+## Phase 20 — Errors, configuration & middleware
 
 **Learning objective:** consistent error handling, environment-based config, and the middleware-vs-dependency judgement call.
 
 **Why it matters:** These are the habits that separate a hobby project from a deployable one. The middleware nuance is a senior tell: middleware runs on *every* request and can't easily reach route-specific dependency context, so it's for truly global concerns. Reaching for middleware where a dependency belongs is a classic beginner mistake.
 
 **Functional requirements:**
-- Custom exception handlers produce a **consistent error shape** across the API; raw stack traces never leak to clients. (Domain exceptions raised by services are mapped to status codes here — see the Architecture section.)
+- Custom exception handlers produce a **consistent error shape** across the API; raw stack traces never leak to clients. (Domain exceptions raised by services are mapped to status codes here — see the Architecture section. This also retires the per-route `try/except` blocks you've been accumulating since Phase 2, and unifies the two `detail` shapes your `422`s have carried since then.)
 - Status codes are deliberate and consistent throughout.
 - Config (DB URL, JWT secret, Redis URL, token expiry) comes from env vars via `pydantic-settings`. **No secrets in code.**
-- At least one middleware for a global concern: inject a **request-ID** into every request/response (used by Phase 17). Configure CORS here too.
+- At least one middleware for a global concern: inject a **request-ID** into every request/response (used by Phase 21). Configure CORS here too.
 
 **Acceptance criteria:**
 - [ ] Every error response shares one JSON shape; no stack trace reaches a client.
@@ -591,42 +754,47 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 
 ---
 
-## Phase 17 — Observability: structured logging
+## Phase 21 — Observability: structured logging (+ a taste of metrics)
 
-**Learning objective:** structured (JSON) logs stamped with a correlation ID, so a single request can be traced end-to-end across layers.
+**Learning objective:** structured (JSON) logs stamped with a correlation ID, so a single request can be traced end-to-end across layers — plus a first, small contact with **metrics** so all three observability pillars are things you've touched, not just named.
 
-**Why it matters:** This is the skill that separates people who can debug production from people who can't. Logging, metrics, and tracing are the three pillars of observability; you'll do logging properly here and at least be able to *speak* to the other two.
+**Why it matters:** This is the skill that separates people who can debug production from people who can't. Logging, metrics, and tracing are the three pillars of observability; you'll do logging properly here, stand up a minimal metrics signal, and at least be able to *speak* to tracing.
 
 **Functional requirements:**
 - Emit **JSON** logs (machine-parseable), not ad-hoc print/plain-text.
-- Every log line for a request carries the **request-ID** from Phase 16's middleware, so all logs for one request can be filtered together.
+- Every log line for a request carries the **request-ID** from Phase 20's middleware, so all logs for one request can be filtered together.
 - Log key events with context (checkout placed, payment confirmed, errors) at appropriate levels.
 - Never log secrets or sensitive PII (passwords, tokens, full card data).
+- **Metrics taste:** expose request counts and latency (per route/status) — a simple middleware feeding a `/metrics` endpoint, or `prometheus-fastapi-instrumentator`. Know what p50/p95/p99 mean and read yours.
 
 **Acceptance criteria:**
 - [ ] All logs for one request can be retrieved by filtering on its request-ID, across layers.
 - [ ] Logs are valid JSON.
 - [ ] No secret or sensitive PII appears in any log line.
+- [ ] Request counts and latency percentiles are observable somewhere (endpoint or logged summary), and you can explain p95 vs average.
 
 **Self-check / interview questions:**
 - Why structured logs over plain text — what does it enable?
 - What are the three pillars of observability, and what does each answer?
 - What should never appear in logs, and why?
+- Why do seniors quote p95/p99 latency rather than the average — what does an average hide?
 
 ---
 
-## Phase 18 — Dockerization
+## Phase 22 — Dockerization (+ graceful shutdown & readiness)
 
-**Learning objective:** containerise the app and orchestrate it with its dependencies, so "works on my machine" stops being a caveat.
+**Learning objective:** containerise the app and orchestrate it with its dependencies, so "works on my machine" stops being a caveat — and understand what happens to **in-flight requests** when the container is told to die.
 
-**Why it matters:** Packaging forces total clarity about what your app depends on and how it runs. Compose gives a one-command app + Postgres + Redis environment, which also makes the Phase 7 row-locking and Phase 11 caching behave like production.
+**Why it matters:** Packaging forces total clarity about what your app depends on and how it runs. Compose gives a one-command app + Postgres + Redis environment, which also makes the Phase 9 row-locking and Phase 14 caching behave like production. And every deploy anywhere ends with your process receiving `SIGTERM` mid-request — knowing the termination sequence, and the difference between "the process is up" and "it's actually ready for traffic," is the bridge between having containers and operating them.
 
 **Functional requirements:**
 - A `Dockerfile` builds the app (slim/multi-stage image; avoid running as root where you can).
 - A `docker-compose.yml` brings up app + **PostgreSQL** + **Redis** with one command.
 - The database (and Redis, if you want) persist across restarts via named volumes.
-- Config is passed via environment (wired to Phase 16 settings); **no secrets baked into the image**.
+- Config is passed via environment (wired to Phase 20 settings); **no secrets baked into the image**.
 - The app reaches Postgres/Redis by their Compose service names; the API is reachable from the host.
+- **Graceful shutdown:** understand the `SIGTERM` → grace period → `SIGKILL` sequence, and verify what uvicorn does with an in-flight request on `docker stop`.
+- **Liveness vs readiness:** split the health story — *liveness* = "the process is alive" (must NOT check the DB, or a DB blip restart-loops your app); *readiness* = "actually able to serve" (DB reachable, migrations applied). Wire Compose's `healthcheck` to readiness.
 
 **Acceptance criteria:**
 - [ ] `docker compose up` starts app + DB + Redis; the API is reachable from the host.
@@ -634,15 +802,19 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 - [ ] Inspecting the image reveals no hard-coded secrets.
 - [ ] The app connects to Postgres/Redis by service name, not `localhost`.
 - [ ] The image is slim / multi-stage, not multi-GB.
+- [ ] Experiment done: `docker stop` during a slow in-flight request — you observed whether it completed, and you can narrate the SIGTERM sequence either way.
+- [ ] Health endpoints distinguish liveness from readiness, and the Compose healthcheck uses readiness.
 
 **Self-check / interview questions:**
 - Why does Dockerfile layer ordering matter for build speed — what comes before what?
 - Inside the Compose network, why is the DB host its service name and not `localhost`? What *is* `localhost` from the app container's view?
 - Why keep secrets out of the image even for a learning project?
+- What's the difference between `SIGTERM` and `SIGKILL` for your in-flight requests?
+- Why must the liveness check *not* include the database, while readiness must?
 
 ---
 
-## Phase 19 — CI/CD with GitHub Actions
+## Phase 23 — CI/CD with GitHub Actions
 
 **Learning objective:** an automated pipeline that runs on every push — tests, linting, type-checking, and a Docker build — gating merges so broken code can't reach `main`.
 
@@ -663,6 +835,33 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 - Why run tests in CI when you already run them locally?
 - What's the difference between CI and CD, and which does this pipeline do?
 - Why use a real DB service container in CI instead of mocking the database?
+
+---
+
+## Phase 24 — ♻️ Refactor: the async data layer ★ the capstone
+
+**Learning objective:** convert the entire I/O path to async — `create_async_engine`, `AsyncSession`, an async `get_db`, async repositories/services/routes — **protected by the test suite**. The deliverable isn't async; it's the *demonstration* that a suite you trust lets you rewrite your data layer without fear.
+
+**Why it matters (pillar 3, collected):** This is the promise of the whole curriculum made concrete. You built sync-first on purpose (simpler mental model, identical architecture); now you pay down that decision as a *safe, verified* migration — the exact kind of infrastructure change seniors are trusted with. Every phase converges here: the Phase 11 event-loop model tells you *why* and *what* changes; the Phase 19 suite tells you *whether you broke anything*; the Phase 9 guarantees (no oversell, idempotency) must survive the rewrite, and your tests prove they do. "I migrated a working data layer from sync to async behind a green test suite, and my concurrency tests never flinched" is a genuinely senior interview story.
+
+**Functional requirements:**
+- Async engine + `AsyncSession`; `get_db` becomes an async yield dependency; repositories, services, and routes go `async` end-to-end — no sync DB calls left on request paths.
+- Behaviour is identical: same endpoints, same status codes, same error shapes. The CI pipeline stays green.
+- The Phase 9 guarantees still hold and the suite still proves them: the concurrency test (no oversell — row locks behave the same; the *database* still arbitrates) and the idempotency-replay test pass unchanged in what they assert.
+- Keep a short migration log: every failure the suite caught during conversion (this list is the evidence for the capstone's thesis).
+
+**Acceptance criteria:**
+- [ ] The whole request path is async; no sync SQLAlchemy session remains on any route.
+- [ ] The full suite is green before and after; behaviour verified identical.
+- [ ] Concurrency and idempotency tests pass — the guarantees survived the rewrite.
+- [ ] Your migration log names at least the classic async traps you hit or avoided (lazy-loading's implicit IO under async, session-per-task discipline, what `MissingGreenlet` means).
+- [ ] You can honestly answer: did it get *faster*? (Measure or reason — for which workload would async win, and did yours?)
+
+**Self-check / interview questions:**
+- What breaks when you touch a lazy relationship in async SQLAlchemy, and why? (What is "implicit IO," and why does async make it explicit?)
+- Which parts of the conversion would have been terrifying without the suite — and which bugs did the suite actually catch? (You kept the log.)
+- Did async make your app faster? Defend your answer with the Phase 11 model: what workload benefits, and where was your bottleneck actually?
+- Now that you've run both: when would you *start* a project async-first, and when sync-first?
 
 ---
 
@@ -695,6 +894,10 @@ That separation — services raise domain errors, the router/handler maps them t
 
 **Where does the transaction live? The service layer — never the repository.** A transaction is a *business* unit of work ("a checkout fully happens or fully doesn't") spanning multiple repository calls that must commit together. If each repo method committed on its own, you couldn't make them atomic. So the repository runs queries; the *service* decides commit vs rollback.
 
+## Class wiring: who builds what (the composition root)
+
+Services *declare* their collaborators (constructor parameters); they never construct them. Small **provider functions** — chained with `Depends`, one per domain in `dependencies.py` — are the only place repositories and services get built. FastAPI resolves the graph per request and caches each dependency, so every repository in a request shares one `Session` — which is precisely what makes the service-owned transaction boundary real. Full treatment: `tutorials/guides/dependency-injection-wiring.md`, built in Phase 4.
+
 ## The repository pattern: hold the nuance
 
 SQLAlchemy's `Session` is *already* a Unit of Work and the ORM is *already* a data-access abstraction, so a thin repository can be ceremony for a tiny app. The mature position: a repository earns its keep when you want to unit-test services without a DB, keep complex queries out of business logic, or preserve the option to swap data stores. **Build it here** (the practice is the point), but be able to say "for a tiny CRUD service I'd skip it as over-engineering." That *judgement* is what's being screened.
@@ -725,6 +928,7 @@ Dockerfile  docker-compose.yml
 - Where is the transaction boundary, and why there?
 - Why separate DB models from API schemas — give a concrete failure of merging them.
 - Do you always need a repository layer? When would you skip it?
+- How do your services acquire their repositories, and why does that choice decide whether they're unit-testable?
 - Layer-based vs domain-based structure — which did you choose and why?
 - How do you keep services testable without spinning up the whole app?
 
@@ -750,10 +954,11 @@ You've genuinely levelled up — not just finished — when all of these are tru
 - [ ] You reach for a **dependency** by reflex and can explain when middleware would be wrong instead.
 - [ ] You keep **DB model, input schema, and output schema** separate without thinking.
 - [ ] You can **draw the checkout transaction** and point to the exact oversell window and how you closed it.
-- [ ] You can **explain idempotency** to someone using your own checkout *and* webhook as two examples.
-- [ ] You can **show an N+1 and its fix** from your own logs.
+- [ ] You can **explain idempotency** to someone using your own checkout *and* payment integration as two examples — in both directions (keys you honour, keys you send).
+- [ ] You can **show an N+1 and its fix** from your own logs, and a **Seq Scan → Index Scan** from your own query plans.
+- [ ] You can **explain the event loop** and defend every `def` vs `async def` choice in your codebase.
 - [ ] You can **reason about caching invalidation** and name a stampede mitigation.
-- [ ] Your **test suite lets you refactor fearlessly** and includes the concurrency + query-count tests.
+- [ ] Your **test suite lets you refactor fearlessly** — and you *proved* it by rewriting the data layer async behind it (Phase 24).
 - [ ] `docker compose up` hands someone your whole stack, and **CI goes green** on every push.
 - [ ] You know what you **deliberately left out** and can justify each omission.
 
@@ -767,3 +972,4 @@ When the dashboard is full, write a paragraph on each. If you can, you've intern
 2. Where did you over-engineer, and where did you under-engineer? How would you re-scope from scratch?
 3. Explain dependency injection to a beginner in three sentences, using something you built.
 4. Your store suddenly gets 100× the traffic. Which part breaks first, what's the first thing you'd change, and which phase here gave you the tools to diagnose it? (You don't need to *build* it — the diagnostic instinct is the senior skill.)
+5. You refactored the whole data layer in Phase 24. What did the test suite catch that manual testing never would have? What does that tell you about the real cost of skipping tests on a "small" project?

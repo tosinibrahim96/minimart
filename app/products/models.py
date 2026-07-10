@@ -3,14 +3,15 @@ the persisted shape and the API shape can diverge without coupling."""
 
 from datetime import datetime
 from decimal import Decimal
+
 from sqlalchemy import (
-    String,
-    Numeric,
-    Text,
-    Integer,
-    ForeignKey,
     Boolean,
     DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
     func,
     text,
 )

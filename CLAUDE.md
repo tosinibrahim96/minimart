@@ -33,6 +33,18 @@ A phase/task is "done" only when BOTH are true: (1) the matching checkbox(es) in
 When I finish a phase I'll type `/done` (or just tell you a phase is finished) — run the
 `done` skill, which verifies the acceptance criteria, ticks the boxes, and writes the
 tutorial (using @tutorials/_TEMPLATE.md, in the style of @tutorials/phases/project-setup.md).
+**Tutorials are drafted incrementally, not at the end.** When a meaningful chunk of a phase
+lands (e.g. one endpoint), create or update that phase's tutorial draft immediately — while
+the wrong turns, exact error messages, and fixes are still fresh (they're the most valuable
+content and the first thing forgotten across multi-day sessions). Mark the draft with a
+`> **Status: IN PROGRESS — covers X; Y pending**` banner, and update it whenever covered code
+changes. `/done` then *finalizes* the existing draft (verify criteria → tick boxes → remove
+the banner, fill gaps) instead of reconstructing a phase from cold memory. A fresh session
+can be pointed at the draft ("check my progress on phase N") to pick up mid-phase context.
+One document per phase, always — sections are updates to that file, never new files.
+**Trigger (agent's job, unprompted):** the moment a section is verified working and I move
+to the next one, update the draft in that same turn. I can also say "checkpoint the
+tutorial" to force a snapshot at any point.
 Tutorials are organised into two folders: `tutorials/phases/` holds the per-phase tutorials
 (one per phase, the DoD deliverable); `tutorials/guides/` holds cross-cutting how-tos that
 surface mid-session but aren't tied to a single phase (e.g. @tutorials/guides/dependency-management.md).

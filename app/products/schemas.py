@@ -2,9 +2,13 @@
 models — input schema, output schema, and model are three distinct classes."""
 
 from datetime import datetime
-
-from pydantic import BaseModel, Field, ConfigDict
 from decimal import Decimal
+from typing import Any, Self
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic_core.core_schema import ValidationInfo
+
+from app.common.pagination import PaginationParams
 
 
 class ProductRead(BaseModel):
@@ -19,3 +23,82 @@ class ProductRead(BaseModel):
     stock: int = Field(..., examples=[10, 20, 30])
     category_id: int = Field(..., examples=[1, 2, 3])
     created_at: datetime = Field(..., examples=["2026-01-01T12:00:00Z"])
+
+
+class ProductCreate(BaseModel):
+    name: str = Field(
+        ..., min_length=3, max_length=50, description="The name of the product"
+    )
+    description: str | None = Field(
+        None, max_length=255, description="The description of the product"
+    )
+    price: Decimal = Field(
+        ...,
+        ge=Decimal("50"),
+        max_digits=10,
+        decimal_places=2,
+        description="The price of the product",
+        examples=[100.00],
+    )
+    stock: int = Field(..., ge=0, description="Units on hand; 0 = not yet in stock")
+    category_id: int = Field(..., gt=0, description="The category id of the product")
+
+
+class ProductUpdate(BaseModel):
+    name: str | None = Field(
+        None, min_length=3, max_length=50, description="The name of the product"
+    )
+    description: str | None = Field(
+        None, max_length=255, description="The description of the product"
+    )
+    price: Decimal | None = Field(
+        None,
+        ge=Decimal("50"),
+        max_digits=10,
+        decimal_places=2,
+        description="The price of the product",
+        examples=[100.00],
+    )
+    stock: int | None = Field(
+        None, ge=0, description="Units on hand; 0 = not yet in stock"
+    )
+    category_id: int | None = Field(
+        None, gt=0, description="The category id of the product"
+    )
+
+    @field_validator("name", "price", "stock", "category_id")
+    @classmethod
+    def reject_explicit_null(cls, v: Any, info: ValidationInfo) -> Any:
+        if v is None:
+            raise ValueError(f"Field {info.field_name} cannot be null")
+        return v
+
+
+class ProductFilter(BaseModel):
+    name: str | None = Field(None, min_length=1)
+    category_id: int | None = Field(None)
+    in_stock: bool | None = Field(None)
+
+    min_price: Decimal | None = Field(None)
+    max_price: Decimal | None = Field(None)
+
+    min_created_at: datetime | None = Field(None)
+    max_created_at: datetime | None = Field(None)
+
+    @model_validator(mode="after")
+    def reject_min_is_greater_than_max(self) -> Self:
+        pairs = [("min_price", "max_price"), ("min_created_at", "max_created_at")]
+        for min_field, max_field in pairs:
+            min_value = getattr(self, min_field)
+            max_value = getattr(self, max_field)
+            if (
+                min_value is not None
+                and max_value is not None
+                and min_value > max_value
+            ):
+                raise ValueError(f"{min_field} cannot be greater than {max_field}")
+        return self
+
+
+class ProductListParams(PaginationParams, ProductFilter):
+    pass

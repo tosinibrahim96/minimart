@@ -3,9 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.categories import models  # noqa: F401
-from app.core.database import Base, engine
-
 from app.categories.router import router as categories_router
+from app.core.database import Base, engine
 from app.products.router import router as products_router
 
 
