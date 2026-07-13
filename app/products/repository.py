@@ -64,4 +64,6 @@ class ProductRepository:
             conditions.append(Product.created_at >= filters.min_created_at)
         if filters.max_created_at is not None:
             conditions.append(Product.created_at <= filters.max_created_at)
+        if filters.brand is not None:
+            conditions.append(Product.brand.icontains(filters.brand, autoescape=True))
         return conditions
