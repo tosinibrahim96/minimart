@@ -151,6 +151,10 @@ host. The portable thing is the **lockfile**, not the venv — that's exactly wh
   so the host `.venv` is stale. Run `uv sync`.
 - **Added a dep but the running app still `ModuleNotFoundError`s** → you didn't rebuild. The
   container's `/opt/venv` only changes on `docker compose build`.
+- **Same mistake, different disguise:** if the package ships a CLI (alembic, pytest, ruff),
+  the forgot-to-rebuild symptom is `OCI runtime exec failed: exec: "alembic": executable file
+  not found in $PATH` from `docker compose exec` — the tool's entry-point script isn't in the
+  image's `/opt/venv/bin` yet. Same fix: rebuild. (Hit this for real adding alembic in Phase 3.)
 - **Build fails with a frozen-lockfile error after editing deps** → `uv.lock` is stale relative
   to `pyproject.toml`. Re-lock (`uv lock`, or it happens as part of `uv add`).
 
