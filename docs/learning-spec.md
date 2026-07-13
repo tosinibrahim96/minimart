@@ -35,7 +35,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | 0 | Foundation & setup | Project shape, app lifecycle, auto-docs | ☑ |
 | 1 | Product catalog (read) | Schemas vs models, `get_db` dependency | ☑ |
 | 2 | Catalog (write) + filtering | Validation, pagination, filtering | ☑ |
-| 3 | Database migrations | Schema versioning with Alembic | ☐ |
+| 3 | Database migrations | Schema versioning with Alembic | ☑ |
 | 4 | ♻️ Refactor: dependency wiring | Constructor injection, composition root | ☐ |
 | 5 | Soft deletes & SKUs | Lifecycle columns, staged migrations, constraints as guards | ☐ |
 
@@ -192,10 +192,10 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 - Both `upgrade` and `downgrade` work.
 
 **Acceptance criteria:**
-- [ ] You can build the entire database from migrations alone, from empty.
-- [ ] A new column is added via a migration with no data loss.
-- [ ] `downgrade` cleanly reverses the latest migration.
-- [ ] Migration files are in git.
+- [x] You can build the entire database from migrations alone, from empty.
+- [x] A new column is added via a migration with no data loss.
+- [x] `downgrade` cleanly reverses the latest migration.
+- [x] Migration files are in git.
 
 **Self-check / interview questions:**
 - Why never autogenerate-and-apply without reading the migration first? What does Alembic miss?

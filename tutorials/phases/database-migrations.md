@@ -1,9 +1,5 @@
 # How to Version Your Database Schema with Alembic
 
-> **Status: IN PROGRESS — all four acceptance criteria demonstrated (from-empty build,
-> add-column with no data loss, downgrade, migrations in git); PENDING: final commits +
-> spec tick via /done.**
-
 > Put the database schema under version control: every change becomes a reviewed, reversible
 > migration file, and `create_all` is retired forever.
 
@@ -333,6 +329,100 @@ Two more lessons this run made concrete:
 - `downgrade -1` removed the column (other data intact), `upgrade head` restored it; the
   broken-API window in between was observed and understood. ✅ criterion 3.
 - Migration files committed. ✅ criterion 4.
+
+## Concepts that confused me (and the plain-English answer)
+
+**"`database_url: str` has no value anywhere in the code — how does it ever work?"**
+Start from what you know: any process can read environment variables (`os.environ`).
+`BaseSettings` is Pydantic wrapping exactly that: the moment `Settings()` runs, it hunts for
+each field in priority order — (1) arguments passed to `Settings(...)`, (2) **environment
+variables**, matching the field name case-insensitively (`database_url` ↔ `DATABASE_URL`),
+(3) a `.env` file if present, (4) the field's default. Ours is won by #2:
+`docker-compose.yml` injects `DATABASE_URL=postgresql+psycopg://...` into the api
+container, and every process in it inherits the variable. Watch both layers:
+
+```bash
+docker compose exec api python -c "import os; print(os.environ['DATABASE_URL'])"
+docker compose exec api python -c "from app.core.config import settings; print(settings.database_url)"
+```
+
+No default declared = the field is *required* = `Settings()` raises a `ValidationError` at
+startup if the var is missing. Fail-fast config is a feature: the app refuses to boot
+rather than limping to its first query. This is also why alembic must run *inside* the
+container — the host has neither the env var nor DNS for the `db` hostname.
+
+**"Why did `Base.metadata` work before, when `main.py` only explicitly imported the
+categories models?"** Because of *transitive* imports. A model registers into
+`Base.metadata` as a side effect of its `class Product(Base):` statement executing — which
+happens when its module is *imported by anyone, once per process* (Python caches imports).
+`main.py` imports both routers; router → service → models, so both model modules load
+anyway — the explicit `# noqa: F401` import was actually redundant. See it in a REPL:
+
+```python
+>>> from app.core.database import Base
+>>> list(Base.metadata.tables)
+[]                          # Base alone knows NOTHING
+>>> import app.products.models
+>>> list(Base.metadata.tables)
+['products']                # importing the module registered it
+```
+
+The lesson: that's *accidental* registration — it depends on a service happening to import
+its models. Entry points that need the **complete** schema (env.py) import model modules
+explicitly instead of hoping a chain delivers them.
+
+**"Do I keep adding an import to env.py for every new domain forever? What's the standard
+way?"** There's no blessed mechanism, but three recognized patterns: (1) **explicit imports
+in env.py** — one line per domain, added when the domain is born; what most production
+codebases (incl. Netflix Dispatch) do, zero magic, and what we chose; (2) an **aggregator
+module** (e.g. `app/models_all.py`) that imports every models module, so the "complete
+schema" list lives in one named, shareable place — note it can't live in `core/database.py`
+because models import `Base` *from* there (circular import); (3) **auto-discovery** —
+walking `app/*/models.py` with `importlib` — exists, but trades a visible one-line ritual
+for invisible magic that fails in quieter ways; defensible at 30 domains, not 5. Whatever
+the pattern, the real safety net is **`alembic check` in CI** (Phase 23): it fails the
+build if models and migrations have drifted, so a forgotten import surfaces as a red PR,
+not a `drop_table` in production.
+
+**"When does the empty-`target_metadata` disaster actually happen?"** Any time env.py runs
+before all models registered. Ranked by likelihood of biting *us*: (1) adding a new domain
+(Phase 6: users) and forgetting its env.py import — metadata isn't empty but *partially
+blind*: if the table already exists, the diff reads as "DB has a table the models don't
+want" → `drop_table('users')` nestled inside an otherwise-legit migration; (2) the classic
+setup mistake — wiring `target_metadata = Base.metadata` but importing no models: fully
+empty phone book, autogenerate proposes dropping *every* table; (3) relying on a transitive
+import chain that a refactor silently breaks. All three produce *plausible-looking*
+migration files — which is why the review is non-negotiable.
+
+**"How do you rename a column with zero downtime? I had 'add → copy → drop' but the code
+still references the old column — I was blank."** The missing move: the code changes *in
+the middle* of the sequence, not after it. The pattern is **expand and contract**:
+
+| Step | Ships | Why it's safe right now |
+|---|---|---|
+| 1. Migration | add `quantity_on_hand`, nullable | additive — running code ignores it |
+| 2. Code deploy | **write both**, read old | new column stops going stale immediately |
+| 3. Backfill | copy old → new for historical rows | dual-writing already covers new rows |
+| 4. Code deploy | **read new**, write both | every row has a value; reads can trust it |
+| 5. Migration | drop `stock` | no running code references it anymore |
+
+At every moment, currently-deployed code finds every column it needs. Step 2 comes *before*
+step 3 on purpose: backfill-first leaves a gap where rows written before the code switch
+have an empty new column — **dual-write first closes the faucet; the backfill mops the
+floor**. Analogy: it's a lane change, not a teleport — you straddle both lanes briefly, and
+the straddling *is* the technique. Steps 1–4 are individually harmless and reversible; only
+step 5 burns a boat, so it ships last, days later. One-sentence interview form: *"Additive
+changes are backward-compatible; destructive ones get decomposed into expand → dual-write →
+backfill → switch reads → contract, so running code never references anything that doesn't
+exist."*
+
+**"What exactly is a `ck` (CHECK) constraint, and why would I use one when Pydantic already
+validates?"** A CHECK is a boolean rule the database itself refuses to violate —
+`CHECK (price >= 0)`. Pydantic's 422 lives at the *application edge*: anyone with psql, a
+buggy script, or a code path that skips the schema can still write `-5.00`. The CHECK is
+the same rule at the *last line of defense*, where nothing routes around it. Pydantic gives
+good error messages; CHECK gives an actual guarantee. Defense in depth — Phase 5 adds real
+ones.
 
 ## Troubleshooting (real issues we hit)
 
