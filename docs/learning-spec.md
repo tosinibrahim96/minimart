@@ -35,7 +35,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | 0 | Foundation & setup | Project shape, app lifecycle, auto-docs | ☑ |
 | 1 | Product catalog (read) | Schemas vs models, `get_db` dependency | ☑ |
 | 2 | Catalog (write) + filtering | Validation, pagination, filtering | ☑ |
-| 3 | Database migrations | Schema versioning with Alembic | ☐ |
+| 3 | Database migrations | Schema versioning with Alembic | ☑ |
 | 4 | ♻️ Refactor: dependency wiring | Constructor injection, composition root | ☐ |
 | 5 | Soft deletes & SKUs | Lifecycle columns, staged migrations, constraints as guards | ☐ |
 
@@ -58,6 +58,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | 11 | Sync vs async: the event loop | `def` vs `async def`, blocking, the threadpool | ☐ |
 | 12 | Background work | `BackgroundTasks` & its limits | ☐ |
 | 13 | Payment integration | Outbound resilience (timeouts, retries, backoff) + inbound webhooks, signatures, idempotency (again) | ☐ |
+| 13b | Product images & object storage | Presigned URLs, S3-style storage, files stay OUT of the DB and OFF your API | ☐ |
 
 ### Part E — Scaling the read path & hardening
 | # | Phase | Core concept | Status |
@@ -191,10 +192,10 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 - Both `upgrade` and `downgrade` work.
 
 **Acceptance criteria:**
-- [ ] You can build the entire database from migrations alone, from empty.
-- [ ] A new column is added via a migration with no data loss.
-- [ ] `downgrade` cleanly reverses the latest migration.
-- [ ] Migration files are in git.
+- [x] You can build the entire database from migrations alone, from empty.
+- [x] A new column is added via a migration with no data loss.
+- [x] `downgrade` cleanly reverses the latest migration.
+- [x] Migration files are in git.
 
 **Self-check / interview questions:**
 - Why never autogenerate-and-apply without reading the migration first? What does Alembic miss?
@@ -556,6 +557,49 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 - Why verify the signature — what attack does an unverified webhook endpoint invite?
 - Why *must* webhook processing be idempotent, given how providers behave?
 - What do you return on a duplicate event, and why does that choice matter to the provider?
+
+---
+
+## Phase 13b — Product images & object storage (presigned URLs)
+
+**Learning objective:** handling user-uploaded files the way production systems do — an S3-compatible object store (MinIO locally), **presigned URLs** so bytes flow client ↔ storage *directly*, and a database that stores **pointers, never blobs**.
+
+**Why it matters:** "Where do uploaded files go?" is a question every backend eventually answers, and the naive answers are all wrong in instructive ways: bytes in the DB bloat backups and drag megabytes through the connection pool; proxying uploads through your API burns request workers on dumb byte-shuffling (your Phase 11 threadpool ceiling, spent on file transfer). The senior pattern inverts it: your API *signs permission slips* (presigned URLs — HMAC signatures, the same cryptographic idea you verified inbound in Phase 13) and the client talks to storage directly. Your server never touches a single image byte. This is how Stripe file uploads, GitHub release assets, and every mobile app's avatar flow actually work.
+
+**Functional requirements:**
+- **MinIO** joins Compose as the S3-compatible store (the API reaches it by service name; credentials from env via settings — no secrets in code).
+- Products gain an image pointer (e.g. `image_key`/`image_url`) via an **Alembic migration** — the store's key, never the file, in Postgres.
+- **Upload flow (admin-only, Phase 7 guards it):**
+  1. Client asks your API for an upload slot for a product.
+  2. API validates (product exists, content type is an allowed image type, size cap declared) and returns a **presigned PUT URL** + the object key it chose (client never picks keys — path traversal by naming is not a thing you allow).
+  3. Client PUTs the file **directly to MinIO** with that URL. Your API never receives the bytes.
+  4. Client confirms; API verifies the object actually exists in the store (never trust "I uploaded it"), then persists the key on the product.
+- **Read path:** product responses expose a usable image URL. Decide consciously: public-read bucket (simple, fine for product images) vs presigned GET (private data — know when each is right).
+- Presigned URLs **expire** (short TTL) and constrain what they permit (method, key, content type).
+- **Orphan story:** an upload that's never confirmed leaves a dangling object. Have an answer — lifecycle/TTL rule on the bucket, or a cleanup job — described is enough, built is better.
+
+| Method | Path | Auth | Success | Errors |
+|--------|------|------|---------|--------|
+| POST | `/products/{id}/image/presign` | admin | `200` + URL & key | `401`, `403`, `404`, `422` bad content type |
+| PUT | *(the presigned URL — straight to MinIO)* | signature in URL | `200` from store | store rejects bad/expired signature |
+| POST | `/products/{id}/image/confirm` | admin | `200` + product | `404`, `409`/`400` object not found in store |
+
+**Acceptance criteria:**
+- [ ] `docker compose up` includes MinIO; the API reaches it by service name, credentials from env.
+- [ ] The image pointer column arrived via a reviewed Alembic migration.
+- [ ] Full flow works: presign → direct PUT → confirm → product read returns a URL that actually renders the image.
+- [ ] The API demonstrably never handles file bytes (no upload endpoint accepts a body with the file; the PUT goes to MinIO's port, not yours).
+- [ ] A disallowed content type is refused at presign time; an expired/tampered presigned URL is refused by the store.
+- [ ] Confirming an upload that never happened → clean `4xx`, product untouched.
+- [ ] Non-admin attempts → `401`/`403` (Phase 7 composition reused).
+- [ ] You can explain your orphaned-object answer.
+
+**Self-check / interview questions:**
+- Why not store the image in Postgres as `BYTEA`? Name the *three* costs (pool, backups, cache/memory), not just "it's bad practice."
+- Why not accept the upload in your API and forward it to storage? What exactly does that spend, in Phase 11 terms (threadpool workers, event loop)?
+- How does a presigned URL actually work — what's signed, by whom, verified by whom? Relate it to the webhook signature you verified in Phase 13.
+- Why must the *server* choose the object key, and why must confirm *check the store* instead of trusting the client?
+- When is a public-read bucket wrong, and what replaces it? What changes when a CDN sits in front?
 
 ---
 

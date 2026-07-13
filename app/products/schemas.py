@@ -23,6 +23,7 @@ class ProductRead(BaseModel):
     stock: int = Field(..., examples=[10, 20, 30])
     category_id: int = Field(..., examples=[1, 2, 3])
     created_at: datetime = Field(..., examples=["2026-01-01T12:00:00Z"])
+    brand: str | None = Field(None, max_length=100, examples=["Nike", "Adidas", "Puma"])
 
 
 class ProductCreate(BaseModel):
@@ -42,6 +43,9 @@ class ProductCreate(BaseModel):
     )
     stock: int = Field(..., ge=0, description="Units on hand; 0 = not yet in stock")
     category_id: int = Field(..., gt=0, description="The category id of the product")
+    brand: str = Field(
+        ..., min_length=1, max_length=100, examples=["Nike", "Adidas", "Puma"]
+    )
 
 
 class ProductUpdate(BaseModel):
@@ -65,8 +69,11 @@ class ProductUpdate(BaseModel):
     category_id: int | None = Field(
         None, gt=0, description="The category id of the product"
     )
+    brand: str | None = Field(
+        None, min_length=1, max_length=100, examples=["Nike", "Adidas", "Puma"]
+    )
 
-    @field_validator("name", "price", "stock", "category_id")
+    @field_validator("name", "price", "stock", "category_id", "brand")
     @classmethod
     def reject_explicit_null(cls, v: Any, info: ValidationInfo) -> Any:
         if v is None:
@@ -78,6 +85,7 @@ class ProductFilter(BaseModel):
     name: str | None = Field(None, min_length=1)
     category_id: int | None = Field(None)
     in_stock: bool | None = Field(None)
+    brand: str | None = Field(None, min_length=1)
 
     min_price: Decimal | None = Field(None)
     max_price: Decimal | None = Field(None)

@@ -36,3 +36,4 @@ class Product(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
