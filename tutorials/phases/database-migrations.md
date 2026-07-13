@@ -1,8 +1,8 @@
 # How to Version Your Database Schema with Alembic
 
-> **Status: IN PROGRESS — covers install → init → wiring → naming conventions → initial
-> migration → upgrade + verification; PENDING: add-a-column migration on populated table,
-> downgrade proof, spec tick.**
+> **Status: IN PROGRESS — all four acceptance criteria demonstrated (from-empty build,
+> add-column with no data loss, downgrade, migrations in git); PENDING: final commits +
+> spec tick via /done.**
 
 > Put the database schema under version control: every change becomes a reviewed, reversible
 > migration file, and `create_all` is retired forever.
@@ -240,12 +240,99 @@ inside transactions, so a migration that fails halfway **rolls back completely**
 half-altered schema. MySQL/Oracle auto-commit DDL and leave you stranded mid-change. An
 underrated reason Postgres is the serious default.
 
+### 9) The add-a-column exercise: `brand` on a table with 43 rows in it
+
+Criterion 2 ("new column, no data loss") demands a *populated* table — so seed data first
+and capture the before state (`SELECT id, name, price FROM products ORDER BY id LIMIT 5;`
+plus a count). Then:
+
+```python
+# app/products/models.py
+brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
+```
+
+```bash
+docker compose exec api alembic revision --autogenerate -m "add brand column to products table"
+# read it: two lines of substance — add_column(nullable=True) / drop_column
+docker compose exec api alembic upgrade head
+```
+
+After: same rows, same values, `count(brand) = 0` — 43 rows survived, brand honestly NULL.
+
+**Why nullable — the decision, not the default:** play migration-runner: if the column were
+NOT NULL, what value would the 43 *existing* rows get at the instant `ALTER TABLE` runs?
+None exists → Postgres must reject it (or you need default/backfill staging — Phase 5's
+`sku` lesson). Nullable is also the honest model: a brand-less product is valid.
+(Considered and rejected for this exercise: `image_url` — promoted to its own Phase 13b,
+object storage + presigned URLs; and a `brands` *table* + FK — brand smells like an entity,
+like category, but normalizing it is three migrations + a backfill story for later.
+Right-sizing to today's requirement is the senior habit.)
+
+**Why the column choice cascaded into schema decisions** (caught in review, worth keeping):
+
+- **Input constraints must mirror the column cap.** `brand` initially had no `max_length`:
+  a 150-char brand would pass Pydantic, then die in Postgres (`value too long`) →
+  unhandled `DataError` → 500. The Phase 2 contract is "bad input dies at the edge with a
+  422" — every input field mirrors its column (`name` 50, `description` 255, `brand` 100),
+  plus `min_length=1` so `""` can't masquerade as "no brand."
+- **Output schemas describe reality; they don't police it.** A `max_length` on `ProductRead`
+  *below* the column cap is a landmine: any legitimately-stored longer value would fail
+  serialization of your own response. Constraints belong on the way in.
+- **PATCH fields have THREE states, not two:** omitted (default applied, validators don't
+  run — Pydantic skips defaults; service uses `exclude_unset`) · explicit `null` (validator
+  fires) · a value. Declaring `brand: str = Field(...)` in the update schema to mean "can't
+  null it" actually meant "every PATCH must include brand" — breaking partial updates. The
+  correct spelling of *settable-but-not-clearable* is `str | None = Field(None, ...)` PLUS
+  membership in the `reject_explicit_null` validator. (Ratchet semantics — a product can
+  gain a brand but never lose one — is a deliberate product decision; be able to defend it.)
+- **Product rule made explicit:** `ProductCreate.brand` is *required* — new products declare
+  a brand; the 43 old rows are grandfathered as NULL. API-required + DB-nullable is
+  coherent *because* of existing rows; the follow-up ("when does the column become NOT
+  NULL?") is answered in stages: backfill, then constraint — Phase 5 does it for real.
+- Filter guard: `min_length=1` on the brand filter, else `?brand=` (empty string) builds
+  `ILIKE '%%'` — matches every branded product while silently excluding NULL brands: a
+  filter that looks like no-filter but isn't.
+
+### 10) The downgrade proof — and the schema/code mismatch window
+
+Predict before running: with `brand` dropped but the app code still referencing it, what
+does `GET /products` do?
+
+```bash
+docker compose exec api alembic downgrade -1     # drops brand
+docker compose exec api alembic current          # back to the initial revision
+# \d products → column gone; SELECT count(*) → still 43 (other columns untouched)
+curl -s localhost:8000/products                  # ← the prediction, live
+docker compose exec api alembic upgrade head     # heal; API works again
+```
+
+What happens, precisely: the ORM builds queries from the *model*, which still declares
+`brand` → `SELECT ... products.brand ...` → Postgres `UndefinedColumn` → psycopg
+`ProgrammingError` → nothing catches it → the client sees a raw **500**. From outside, a
+schema/code mismatch doesn't announce itself — the API "just starts failing"; the truth is
+only in the logs. This window is exactly the *backward-compatibility* question: in every
+real deploy, old-or-new code runs against new-or-old schema for a moment.
+
+Two more lessons this run made concrete:
+
+- **Downgrades are not magically lossless.** `drop_column` destroys whatever the column
+  holds. Ours was all-NULL, so this rollback was clean — but had brands been written first,
+  `downgrade` would silently delete them. Production rollbacks are a bigger deal than the
+  one-word command makes them feel.
+- **An applied migration is immutable history.** Renaming/regenerating a migration file was
+  fine *only* while unapplied and uncommitted (we did it to pick up the `file_template`) —
+  once applied anywhere or pushed, treat it like a pushed git commit.
+
 ## Run & verify
 
 - `docker compose exec api alembic current` → prints the head revision.
-- `\d products` in psql → constraints carry convention names (`pk_`, `fk_`, `uq_`).
+- `\d products` in psql → constraints carry convention names (`pk_`, `fk_`, `uq_`); `brand`
+  is `character varying(100)`, nullable.
 - API create/list works on a DB built from migrations alone, from empty. ✅ criterion 1.
-- PENDING: add-a-column migration on a table *with rows* (no data loss) + `downgrade` proof.
+- 43 pre-existing rows survived the `brand` migration; `count(brand) = 0`. ✅ criterion 2.
+- `downgrade -1` removed the column (other data intact), `upgrade head` restored it; the
+  broken-API window in between was observed and understood. ✅ criterion 3.
+- Migration files committed. ✅ criterion 4.
 
 ## Troubleshooting (real issues we hit)
 
