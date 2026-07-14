@@ -15,19 +15,24 @@ from app.products.schemas import ProductCreate, ProductListParams, ProductUpdate
 
 
 class ProductService:
-    def __init__(self, db: Session):
-        self.repository = ProductRepository(db)
-        self.category_repository = CategoryRepository(db)
+    def __init__(
+        self,
+        db: Session,
+        product_repository: ProductRepository,
+        category_repository: CategoryRepository,
+    ):
         self.db = db
+        self.product_repository = product_repository
+        self.category_repository = category_repository
 
     def list_products(self, params: ProductListParams) -> tuple[Sequence[Product], int]:
-        products, count = self.repository.list_products(
+        products, count = self.product_repository.list_products(
             limit=params.per_page, offset=params.offset, filters=params
         )
         return products, count
 
     def get_product(self, product_id: int) -> Product:
-        product = self.repository.get_product(product_id)
+        product = self.product_repository.get_product(product_id)
         if product is None:
             raise ProductNotFoundError(f"Product with id {product_id} not found")
         return product
@@ -41,7 +46,7 @@ class ProductService:
                 )
 
             try:
-                new_product = self.repository.create_product(data)
+                new_product = self.product_repository.create_product(data)
             except IntegrityError as e:
                 raise CategoryNotFoundError(
                     f"Category with id {data.category_id} not found"
@@ -59,7 +64,7 @@ class ProductService:
                         f"Category with id {data.category_id} not found"
                     )
             try:
-                product = self.repository.update_product(product, data)
+                product = self.product_repository.update_product(product, data)
             except IntegrityError as e:
                 raise CategoryNotFoundError(
                     f"Category with id {data.category_id} not found"

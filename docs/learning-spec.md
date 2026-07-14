@@ -36,7 +36,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | 1 | Product catalog (read) | Schemas vs models, `get_db` dependency | ☑ |
 | 2 | Catalog (write) + filtering | Validation, pagination, filtering | ☑ |
 | 3 | Database migrations | Schema versioning with Alembic | ☑ |
-| 4 | ♻️ Refactor: dependency wiring | Constructor injection, composition root | ☐ |
+| 4 | ♻️ Refactor: dependency wiring | Constructor injection, composition root | ☑ |
 | 5 | Soft deletes & SKUs | Lifecycle columns, staged migrations, constraints as guards | ☐ |
 
 ### Part B — Identity & access
@@ -217,10 +217,10 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 - Behaviour is unchanged: every endpoint responds identically before and after the refactor.
 
 **Acceptance criteria:**
-- [ ] Grepping service files for `Repository(` finds nothing — services receive, never build.
-- [ ] Each repository and service class is constructed in exactly **one** provider function.
-- [ ] Thought experiment passes: adding a parameter to any repository's constructor would touch exactly one file.
-- [ ] All endpoints verified to behave identically pre/post refactor (manual for now; the Phase 19 suite guards this permanently later).
+- [x] Grepping service files for `Repository(` finds nothing — services receive, never build.
+- [x] Each repository and service class is constructed in exactly **one** provider function.
+- [x] Thought experiment passes: adding a parameter to any repository's constructor would touch exactly one file.
+- [x] All endpoints verified to behave identically pre/post refactor (manual for now; the Phase 19 suite guards this permanently later).
 
 **Self-check / interview questions:**
 - FastAPI caches each dependency per request. Why is that caching a *correctness* requirement for your service-owned transaction boundary, not just an optimisation? (What would two sessions in one request do to `with db.begin()`?)

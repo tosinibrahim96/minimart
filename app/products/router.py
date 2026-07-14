@@ -3,11 +3,11 @@ results/domain errors to status codes. Decides nothing on its own."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.categories.exceptions import CategoryNotFoundError
-from app.common.dependencies import DbSession
 from app.common.pagination import Page
+from app.products.dependencies import ProductServiceDep
 from app.products.exceptions import ProductNotFoundError
 from app.products.schemas import (
     ProductCreate,
@@ -15,14 +15,6 @@ from app.products.schemas import (
     ProductRead,
     ProductUpdate,
 )
-from app.products.service import ProductService
-
-
-def get_product_service(db: DbSession) -> ProductService:
-    return ProductService(db)
-
-
-ProductServiceDep = Annotated[ProductService, Depends(get_product_service)]
 
 router = APIRouter(prefix="/products", tags=["products"])
 
