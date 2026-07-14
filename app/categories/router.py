@@ -3,20 +3,12 @@ results/domain errors to status codes. Decides nothing on its own."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
+from app.categories.dependencies import CategoryServiceDep
 from app.categories.exceptions import CategoryNotFoundError
 from app.categories.schemas import CategoryListParams, CategoryRead
-from app.categories.service import CategoryService
-from app.common.dependencies import DbSession
 from app.common.pagination import Page
-
-
-def get_category_service(db: DbSession) -> CategoryService:
-    return CategoryService(db)
-
-
-CategoryServiceDep = Annotated[CategoryService, Depends(get_category_service)]
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
