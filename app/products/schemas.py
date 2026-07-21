@@ -1,6 +1,7 @@
 """Pydantic request/response schemas (the API shape). Kept separate from the DB
 models — input schema, output schema, and model are three distinct classes."""
 
+import re
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Self
@@ -23,7 +24,8 @@ class ProductRead(BaseModel):
     stock: int = Field(..., examples=[10, 20, 30])
     category_id: int = Field(..., examples=[1, 2, 3])
     created_at: datetime = Field(..., examples=["2026-01-01T12:00:00Z"])
-    brand: str | None = Field(None, max_length=100, examples=["Nike", "Adidas", "Puma"])
+    brand: str = Field(..., max_length=100, examples=["Nike", "Adidas", "Puma"])
+    sku: str = Field(..., examples=["SKU-1", "SKU-2", "SKU-3"])
 
 
 class ProductCreate(BaseModel):
@@ -46,9 +48,32 @@ class ProductCreate(BaseModel):
     brand: str = Field(
         ..., min_length=1, max_length=100, examples=["Nike", "Adidas", "Puma"]
     )
+    sku: str | None = Field(
+        None,
+        min_length=3,
+        max_length=100,
+        examples=[
+            "Nike-blue-M",
+        ],
+    )
+
+    @field_validator("sku", mode="before")
+    @classmethod
+    def validate_and_normalize_sku(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+
+        v = v.strip().upper()
+        if not re.match(r"^[A-Z0-9-]+$", v):
+            raise ValueError(
+                "SKU must contain only alphanumeric characters and hyphens"
+            )
+        return v
 
 
 class ProductUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(
         None, min_length=3, max_length=50, description="The name of the product"
     )

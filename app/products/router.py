@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from app.categories.exceptions import CategoryNotFoundError
 from app.common.pagination import Page
 from app.products.dependencies import ProductServiceDep
-from app.products.exceptions import ProductNotFoundError
+from app.products.exceptions import DuplicateSKUError, ProductNotFoundError
 from app.products.schemas import (
     ProductCreate,
     ProductListParams,
@@ -43,6 +43,8 @@ def create_product(data: ProductCreate, service: ProductServiceDep):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
         ) from e
+    except DuplicateSKUError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
 
 
 @router.patch("/{product_id}", response_model=ProductRead)
@@ -55,3 +57,11 @@ def update_product(product_id: int, data: ProductUpdate, service: ProductService
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
         ) from e
+
+
+@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_product(product_id: int, service: ProductServiceDep):
+    try:
+        service.delete_product(product_id)
+    except ProductNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
