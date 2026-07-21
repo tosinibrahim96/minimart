@@ -37,7 +37,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | 2 | Catalog (write) + filtering | Validation, pagination, filtering | ☑ |
 | 3 | Database migrations | Schema versioning with Alembic | ☑ |
 | 4 | ♻️ Refactor: dependency wiring | Constructor injection, composition root | ☑ |
-| 5 | Soft deletes & SKUs | Lifecycle columns, staged migrations, constraints as guards | ☐ |
+| 5 | Soft deletes & SKUs | Lifecycle columns, staged migrations, constraints as guards | ☑ |
 
 ### Part B — Identity & access
 | # | Phase | Core concept | Status |
@@ -236,6 +236,9 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 **Why it matters (pillar 2):** "How do you delete data without destroying history?" and "what identifies a product besides your database id?" are day-one production modelling questions. Soft deletes preserve referential history (orders must survive their product being removed from the store) but tax every read query forever — choosing them means engineering for that tax, not just adding a column. And the SKU backfill is Phase 3's "staged migration" self-check answer turned into something you actually did.
 
 **Functional requirements:**
+- **Warm-up — constraints as guards (found during Phase 4 verification):** the ₦50 price floor and required brand exist only as edge validation (Pydantic), while the DB holds 32 products under ₦50 and 43 without brands. Edge validation guards one door; a data invariant must live in the database. Two exercises, done *before* the SKU work:
+  - **Price:** decide the fate of the violating rows (re-price vs delete — a real data decision), execute it via a reviewed data migration, then add a `CHECK (price >= 50)` constraint so no write path (bulk import, psql, future tooling) can violate the rule.
+  - **Brand:** either complete the staged migration (backfill → `NOT NULL`) as a cheap dress rehearsal for SKU's, or consciously commit to permanent nullability as documented edge policy. Note the tension before choosing: backfilling a placeholder invents data to satisfy a constraint.
 - **Soft delete:** a nullable `deleted_at` timestamp on products (NULL = alive). `DELETE /products/{id}` sets it and returns `204`. A soft-deleted product returns `404` on fetch and disappears from lists and (later) search — deleted means *behaves deleted*. The row stays; future orders history stays intact.
 - `deleted_at` is a **timestamp, not a boolean** — it must answer *when*, enabling audits and retention/purge jobs later.
 - `is_active` **stays and keeps a distinct meaning** ("merchant hid it — business state, merchant-reversible") vs `deleted_at` ("lifecycle — it's gone from the store"). Two concepts, two columns; document the distinction.
@@ -251,14 +254,17 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | POST | `/products` (with/without `sku`) | admin (Phase 7) | `201` | `409` duplicate sku, `422` |
 
 **Acceptance criteria:**
-- [ ] Deleting a product: `204`; then `404` on fetch, absent from lists — but the row is still in the DB with `deleted_at` set.
-- [ ] `is_active` and `deleted_at` coexist with documented, distinct meanings.
-- [ ] `sku` added via a staged migration (nullable → backfill → NOT NULL), no data loss, and `downgrade` works.
-- [ ] POST without a `sku` gets a generated one; POST with a duplicate `sku` → `409`, and it cannot be confused with the category-`422` (constraint-name discrimination proven).
-- [ ] Delete a product, then create a new one reusing its SKU → succeeds (partial index proven).
-- [ ] PATCH attempting to change `sku` is rejected.
+- [x] Warm-up (price): violating rows handled via a reviewed data migration; a `CHECK` constraint enforces the floor — proven by a raw-SQL insert under ₦50 failing at the DB, not the API.
+- [x] Warm-up (brand): the staged backfill → `NOT NULL` executed, **or** permanent nullability documented with rationale — either way, a conscious recorded decision.
+- [x] Deleting a product: `204`; then `404` on fetch, absent from lists — but the row is still in the DB with `deleted_at` set.
+- [x] `is_active` and `deleted_at` coexist with documented, distinct meanings.
+- [x] `sku` added via a staged migration (nullable → backfill → NOT NULL), no data loss, and `downgrade` works.
+- [x] POST without a `sku` gets a generated one; POST with a duplicate `sku` → `409`, and it cannot be confused with the category-`422` (constraint-name discrimination proven).
+- [x] Delete a product, then create a new one reusing its SKU → succeeds (partial index proven).
+- [x] PATCH attempting to change `sku` is rejected.
 
 **Self-check / interview questions:**
+- Why can't Pydantic validation alone enforce a business rule like the ₦50 floor? Name two write paths that never meet it, and what the `CHECK` constraint does about them.
 - Why a timestamp over a boolean for soft deletes? And why keep `id` as the primary key and FK target when `sku` is unique (surrogate vs natural key)?
 - Why can't a required unique column be added to a populated table in one migration step? Walk the stages and what each protects.
 - What breaks if *one* repository query forgets `deleted_at IS NULL`, and what *structurally* prevents that in your codebase?
