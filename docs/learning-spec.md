@@ -4,6 +4,7 @@ A behaviour-driven spec for becoming **interview-ready** on FastAPI and backend 
 
 > **How to use this document**
 > - Work the phases in order. The order *is* the curriculum.
+> - **Every phase starts with reading time.** Check the *Reading map* section below for the phase's assigned chapters and read them *before* building — reading that precedes the build is preparation; reading that follows it is trivia.
 > - For each phase: read the *Learning objective* and *Why it matters* first, then build until the *Acceptance criteria* pass, then answer the *Self-check / interview questions* out loud before moving on.
 > - A phase is "done" only when the acceptance criteria pass **and** you can answer the self-check questions without notes. Working code you can't explain is not done — an interviewer will find the gap in two sentences.
 > - Update each phase's *Status* and tick the dashboard. Watching it fill up is the point.
@@ -82,6 +83,53 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | 22 | Dockerization | Images, Compose, graceful shutdown, readiness vs liveness | ☐ |
 | 23 | CI/CD | GitHub Actions: test, lint, build, gate | ☐ |
 | 24 | ♻️ Refactor: the async data layer ★ | Async SQLAlchemy end-to-end, protected by the suite | ☐ |
+
+---
+
+## Reading map (read before you build)
+
+Book/chapter facts below were verified against publisher and author primary sources on **2026-07-22** (deep-research pass; 24 claims confirmed 3-0). ⚠ marks the two spots where a chapter number couldn't be pinned to a primary source — resolve from the book's own ToC at phase start.
+
+**Edition warning — it matters:** DDIA's **2nd edition shipped Feb/Mar 2026** (Kleppmann & **Riccomini**, O'Reilly, 14 chapters) and *renumbers the book*: two new opening chapters shift the middle by +1 (Transactions 7→8, Storage and Retrieval 3→4, Encoding 4→5; "Partitioning" is now Ch 7 "Sharding"). All DDIA numbers below are **2e, with 1e in brackets**. The official site dataintensive.net is stale (still 1e-only, © 2014-2019) — never use it for edition status. No free full text, but ScyllaDB's landing page legally offers a ~150-page 2e excerpt containing Chs 1, 2, and 9.
+
+### The shelf
+
+| Book | Verdict |
+|------|---------|
+| **Designing Data-Intensive Applications, 2e** (Kleppmann & Riccomini, O'Reilly 2026) | The backbone. Ch 8 anchors Phase 9, Ch 4 anchors Phases 10 & 16 (2e adds a Full-Text Search subsection), Ch 5 is the schema-evolution backdrop. |
+| **SQL Performance Explained** (Winand) | Phase 10 in book form. The free web edition is **use-the-index-luke.com** — chapters are *unnumbered*, so cite titles. |
+| **PostgreSQL 14 Internals** (Rogov) | **Free official PDF** at postgrespro.com/community/books/internals (no registration). Part I "Isolation and MVCC" and Part III "Locks" are the physics under Phase 9 and the queued zero-downtime-migrations guide. Tracks PG 14; the mechanics are stable. |
+| **API Design Patterns** (Geewax, Manning 2021 — sole edition) | The pattern anchors, chapter-verified: 24 Versioning · 25 Soft deletion · 26 Request deduplication · 27 Request validation · 29 Request retrial · 30 Request authentication. Verifiably contains **no** rate-limiting or webhook chapters — hence Lauret. |
+| **The Design of Web APIs, 2e** (Lauret, Manning, June 2025) | The holistic complement; verified to cover rate limiting and webhooks (fills Geewax's exact gaps). ⚠ Chapter numbers not exposed online — locate in its ToC when starting Phases 13/17. |
+| **A Philosophy of Software Design, 2e** (Ousterhout, 2021) | The craft pick. *Clean Code* is formally **contested on primary-source record**: a written Ousterhout–Martin debate (Sept 2024–Feb 2025, on Ousterhout's GitHub) attacks the tiny-function and anti-comment doctrines, and Martin concedes the 2008 advice was era-bound; his rewritten CC 2e (Oct 2025) is too new to have a reception record. APoSD is ~190pp — read cover to cover, no chapter map needed. |
+| **Fluent Python, 2e** (Ramalho, 2022 — confirmed no 3e as of Jul 2026) | Targeted chapters only (below), never cover-to-cover (1,014pp). |
+| **The Art of PostgreSQL, 2e updated 2026** (Fontaine; PG 10–18, new pgvector chapter) | Maintained and current; optional and paid ($89). Consider around Phase 16. |
+
+Deliberately **no** additions for auth/security (6/15) or observability (21): no consensus pick survived verification, and primary docs + the spec's existing resources cover them. Bloat rejected.
+
+### Phase → reading
+
+| Before | Read | Why now |
+|--------|------|---------|
+| **Now** (pre-6) | APoSD cover to cover · DDIA 2e Chs 1–2 (new in 2e; both in the free excerpt) | Craft vocabulary for every decision ahead; trade-offs and nonfunctional requirements — the lens the rest of DDIA assumes. |
+| **6** | OWASP **Password Storage Cheat Sheet** | The argon2-vs-bcrypt-and-parameters decision made consciously instead of cargo-culted from a tutorial; "why hash *and salt*" — this phase's own interview question — answered by the living document no book stays current with. |
+| **9 ★** | DDIA 2e **Ch 8 "Transactions"** [1e: 7] — ACID, Read Committed vs Snapshot Isolation, **Preventing Lost Updates**, Write Skew, 2PL vs SSI · Geewax **Ch 26** "Request deduplication" · deep option: Rogov **Part I** | "Preventing Lost Updates" *is* your oversell window, named; Ch 26 is the Idempotency-Key check→store→return mechanism you'll build. |
+| **10** | DDIA 2e **Ch 4 "Storage and Retrieval"** [1e: 3] — B-trees, multicolumn & secondary indexes · Winand: *Anatomy of an Index* · *The Where Clause* · *Execution Plans (PostgreSQL)* · *Insert, Delete and Update* | The theory under `EXPLAIN`, plus the index write-tax argument for "why not index every column". |
+| **11** | Fluent Python **Ch 19** "Concurrency Models in Python" | The event-loop/threads/processes model before you freeze the server on purpose. |
+| **13** | Geewax **Ch 29** "Request retrial" · **Ch 30** "Request authentication" · Ch 26 again, pointed inbound · Lauret webhook chapter ⚠ · optional: DDIA 2e **Ch 9** (in the free excerpt) | Backoff & Retry-After; request signatures = the webhook-HMAC idea; dedup from the provider's side; Ch 9 is *why* timeouts exist. |
+| **15** | OWASP **JWT Cheat Sheet** + **Session Management Cheat Sheet** · **RFC 8725** (JWT Best Current Practices) · the refresh-rotation guidance in the **OAuth 2.0 Security BCP** (RFC 9700) | The checklists your rotation/revocation design will be judged against — read before designing, not after; this is where JWT best-practices reading pays (hardening), not at first contact in Phase 6. |
+| **16** | DDIA 2e **Ch 4 → "Full-Text Search" subsection** (2e-only) · Fontaine (optional) | What FTS/GIN is under the hood before defending Postgres-over-Elasticsearch. |
+| **17** | Lauret rate-limiting sections ⚠ | 429/Retry-After/headers as API *design*, not middleware trivia. |
+| **19 ★** | Fluent Python **Ch 13** "Interfaces, Protocols, and ABCs" | Before writing the test fakes: the service's constructor is annotated with the *concrete* repository class, so a non-inheriting fake will type-check red — duck typing vs `typing.Protocol` vs ABC is the decision this chapter arms you for. |
+| **24 ★** | Fluent Python **Ch 21** "Asynchronous Programming" (re-skim Ch 19) | async/await mechanics before rewriting the data layer behind the suite. |
+| Migrations guide (queued) | Rogov **Part I** "Isolation and MVCC" + **Part III** "Locks" | The lock/MVCC physics under `NOT VALID`/`VALIDATE` — the first-principles source for the guide. |
+| Retro (already built) | Geewax **Ch 25** "Soft deletion" (Phase 5) · **Ch 24** "Versioning and compatibility" · DDIA 2e **Ch 5 "Encoding and Evolution"** [1e: 4] (Phases 3/5) | Check your Phase 5 design against the published pattern; the schema-evolution frame for migrations you already wrote. |
+
+Phases with no assigned reading (7/8/12/13b/14/18/20–23) build from the spec and primary docs — the map stays lean on purpose. Fluent Python Chs 1/8/9 (data model, type hints, decorators/closures) are the standing dip-in references whenever those language features feel shaky.
+
+**Books aren't the only reading — the companion-reads half of the ritual.** The rows above are the *stable gates*: books, RFCs, OWASP cheat sheets — sources that stay put and were verified once. The other half is **companion reads**: engineering-blog case studies ("how Stripe/AWS/Cloudflare actually run this in production") that make a phase's concept concrete from the operator's side. These are deliberately *not* pinned in this table — blog links rot and better write-ups keep appearing — so they're curated fresh at each phase start, as part of the reading-time announcement. Standing sources worth knowing (a decade of consistent quality): the **AWS Builders' Library** (Marc Brooker's resilience essays — timeouts/retries/jitter, health checks), **Stripe engineering / brandur.org** (the canonical idempotency-keys write-ups), **Cloudflare** (rate limiting, networking), **GoCardless + the `strong_migrations` README** (zero-downtime migrations), **Honeycomb** (observability), **fly.io** (Postgres operations).
+
+*Verification bar, by half:* map rows are durable and factual, so they get verified against primary sources **before** being pinned here; companion reads are ephemeral and self-testing (you judge them against that week's build), so they only need a trusted outlet + a relevance skim — no heavy verification. The boundary rule: anything a companion read surfaces that would *change this map* (new edition, superseded standard, better canonical source) pays map-grade verification at the border before it's written in.
 
 ---
 
