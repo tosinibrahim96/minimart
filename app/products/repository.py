@@ -2,8 +2,9 @@
 HTTP; makes no business decisions; never owns the transaction."""
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.orm import Session
 
 from app.products.models import Product
@@ -17,21 +18,22 @@ class ProductRepository:
     def list_products(
         self, limit: int, offset: int, filters: ProductFilter
     ) -> tuple[Sequence[Product], int]:
-        conditions = self._filter_conditions(filters)
-        items_stmt = (
-            select(Product)
-            .where(*conditions)
-            .order_by(Product.id.desc())
-            .limit(limit)
-            .offset(offset)
+        query = self._select_products().where(*self._filter_conditions(filters))
+        items_stmt: Select[tuple[Product]] = (
+            query.order_by(Product.id.desc()).limit(limit).offset(offset)
         )
-        count_stmt = select(func.count()).select_from(Product).where(*conditions)
+        count_stmt: Select[tuple[int]] = (
+            select(func.count()).select_from(query.subquery()).order_by(None)
+        )
         items = self.db.execute(items_stmt).scalars().all()
         count = self.db.execute(count_stmt).scalar_one()
         return items, count
 
-    def get_product(self, product_id: int) -> Product | None:
-        return self.db.get(Product, product_id)
+    def get_product(
+        self, product_id: int, include_deleted: bool = False
+    ) -> Product | None:
+        query = self._select_products(include_deleted).where(Product.id == product_id)
+        return self.db.execute(query).scalar_one_or_none()
 
     def create_product(self, data: ProductCreate) -> Product:
         new_product = Product(**data.model_dump())
@@ -44,6 +46,10 @@ class ProductRepository:
             setattr(product, field, value)
         self.db.flush()
         return product
+
+    def soft_delete(self, product: Product) -> None:
+        product.deleted_at = datetime.now(UTC)
+        self.db.flush()
 
     def _filter_conditions(self, filters: ProductFilter) -> list[ColumnElement[bool]]:
         conditions = []
@@ -67,3 +73,9 @@ class ProductRepository:
         if filters.brand is not None:
             conditions.append(Product.brand.icontains(filters.brand, autoescape=True))
         return conditions
+
+    def _select_products(self, include_deleted: bool = False) -> Select[tuple[Product]]:
+        query = select(Product)
+        if not include_deleted:
+            query = query.where(Product.deleted_at.is_(None))
+        return query
