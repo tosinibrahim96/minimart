@@ -43,7 +43,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 ### Part B — Identity & access
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
-| 6 | Users & authentication | Hashing, OAuth2 flow, JWT | ☐ |
+| 6 | Users & authentication | Hashing, OAuth2 flow, JWT | ◐ |
 | 7 | Authorization | `get_current_user`, roles/scopes | ☐ |
 
 ### Part C — The transactional core
