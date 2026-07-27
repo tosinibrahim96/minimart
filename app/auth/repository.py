@@ -13,11 +13,9 @@ class UserRepository:
         self.db = db
 
     def get_user_by_email(self, email: str) -> User | None:
-        return (
-            self.db.execute(
-                select(User).where(func.lower(User.email) == email.lower())
-            ).scalar_one_or_none()
-        )
+        return self.db.execute(
+            select(User).where(func.lower(User.email) == email.lower())
+        ).scalar_one_or_none()
 
     def create_user(self, data: UserCreateSave) -> User:
         new_user = User(**data.model_dump())

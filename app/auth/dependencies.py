@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import Depends
+from fastapi.security.oauth2 import OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
 
 from app.auth.repository import UserRepository
@@ -29,3 +30,6 @@ def get_auth_service(
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+Oauth2PasswordRequestFormDep = Annotated[OAuth2PasswordRequestForm, Depends()]

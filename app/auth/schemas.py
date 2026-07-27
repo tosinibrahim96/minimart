@@ -6,14 +6,13 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
-class Token(BaseModel):
+class TokenResponse(BaseModel):
     access_token: str
     token_type: str
 
-
-class TokenData(BaseModel):
-    id: int
-
+class TokenPayload(BaseModel):
+    sub: str
+    exp: datetime
 
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
