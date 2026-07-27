@@ -3,9 +3,9 @@ results/domain errors to status codes. Decides nothing on its own."""
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.auth.dependencies import AuthServiceDep
-from app.auth.exceptions import UserAlreadyExistsError
-from app.auth.schemas import UserCreate, UserRead
+from app.auth.dependencies import AuthServiceDep, Oauth2PasswordRequestFormDep
+from app.auth.exceptions import InvalidCredentialsError, UserAlreadyExistsError
+from app.auth.schemas import TokenResponse, UserCreate, UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -16,3 +16,15 @@ def register(data: UserCreate, service: AuthServiceDep) -> UserRead:
         return service.create_account(data)
     except UserAlreadyExistsError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+
+
+@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+def login(data: Oauth2PasswordRequestFormDep, service: AuthServiceDep) -> TokenResponse:
+    try:
+        return service.login(data.username, data.password)
+    except InvalidCredentialsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e

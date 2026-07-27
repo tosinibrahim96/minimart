@@ -1,14 +1,24 @@
 """Business logic: decides *what* should happen, owns the transaction boundary,
 raises domain exceptions (never HTTPException)."""
 
+from datetime import UTC, datetime, timedelta
+
+import jwt
 from pwdlib import PasswordHash
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.exceptions import UserAlreadyExistsError
+from app.auth.exceptions import InvalidCredentialsError, UserAlreadyExistsError
 from app.auth.models import User
 from app.auth.repository import UserRepository
-from app.auth.schemas import UserCreate, UserCreateSave, UserRead
+from app.auth.schemas import (
+    TokenPayload,
+    TokenResponse,
+    UserCreate,
+    UserCreateSave,
+    UserRead,
+)
+from app.core.config import settings
 
 _DUMMY_PASSWORD = "password"
 _DUMMY_HASH = PasswordHash.recommended().hash(_DUMMY_PASSWORD)
@@ -41,6 +51,12 @@ class AuthService:
         self.db.refresh(user)
         return UserRead.model_validate(user)
 
+    def login(self, email: str, password: str) -> TokenResponse:
+        user = self._authenticate(email, password)
+        if user is None:
+            raise InvalidCredentialsError("Incorrect email or password")
+        return TokenResponse(access_token=self._create_access_token(user.id), token_type="bearer")
+
     def _get_password_hash(self, password: str) -> str:
         return self.password_hash.hash(password)
 
@@ -48,6 +64,7 @@ class AuthService:
         return self.password_hash.verify(plain_password, hashed_password)
 
     def _authenticate(self, email: str, password: str) -> User | None:
+        email = email.strip().lower()
         user = self.user_repository.get_user_by_email(email)
         if user is None:
             self._verify_password(password, _DUMMY_HASH)
@@ -55,6 +72,12 @@ class AuthService:
         if not self._verify_password(password, user.password_hash):
             return
         return user
+
+    def _create_access_token(self, user_id: int) -> str:
+        expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
+        payload = TokenPayload(sub=f"user:{user_id}", exp=expire)
+        encoded_jwt = jwt.encode(payload.model_dump(), settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        return encoded_jwt
 
     @staticmethod
     def _constraint_name(e: IntegrityError) -> str | None:
