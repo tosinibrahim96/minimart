@@ -1,7 +1,5 @@
 # How to Build Users & Authentication: Hashing, the OAuth2 Password Flow, and JWTs
 
-> **Status: IN PROGRESS — covers reading (step 0), the users table (step 1), and register (step 2), all verified; login (step 3) pending.**
-
 > Add real users to MiniMart: registration with properly hashed passwords, login via the
 > OAuth2 password flow, and a signed JWT that makes authentication stateless.
 
@@ -59,7 +57,33 @@ but published attacks compute it in *less* memory than configured when passes < 
 Argon2**id** (hybrid, the recommended default). The warning applies only to the `i`
 variant; we're using `id`, so the headline `m=19 MiB, t=2, p=1` row is fine.
 
-**Library landscape (2026) — the cargo-cult trap.** `passlib`, which most FastAPI
+**Salt, work factor, pepper — three knobs, three attacks (and the misconception).** A
+salt is *not* the number of hashing rounds — that's the **work factor** (`m`/`t`/`p`).
+The salt is random bytes generated per-password, mixed into the hash input, and stored
+**in plaintext inside the PHC string** (its 4th segment). Not secret — its power is
+uniqueness. Proof from our own stack: hash the same password twice →
+
+```python
+ph.hash('longenough1')  # $argon2id$...$BvCzOFHS+yBSnkoemxgzdA$xJt4...
+ph.hash('longenough1')  # $argon2id$...$KROms8BbpB6uI5tsHMjXuQ$4m+z...  ← different!
+# both verify() True — verify reads the salt back out of the stored string
+```
+
+What it defeats: **precomputation**. Unsalted, `hash("password123")` is identical across
+every user and every database, so attackers precompute hashes of the top billion passwords
+once (rainbow tables) and crack a stolen table by *lookup* — plus duplicate passwords are
+visible as duplicate hashes. Salted, every hash is unique, the precomputed table is
+worthless, and each password must be attacked individually — *that's* when the work
+factor's per-guess cost bites. The defenses compose: salt destroys preparation, work
+factor taxes the unprepared attack, and a pepper (secret, outside the DB) defeats the
+DB-only leak. Why no "add salt" step in our code: modern KDF APIs (`.hash()`) generate and
+embed the salt unconditionally — manual salting (`sha256(salt + password)`) is a
+hand-rolled-crypto red flag from the pre-bcrypt era, not diligence. Verified at the
+source (the right reflex — don't take the library's word for it): argon2-cffi's
+`_password_hasher.py` reads `salt=salt or os.urandom(self.salt_len)` — the parameter
+exists for reproducible test vectors, nothing in our stack passes one, so the fallback
+*always* runs: 16 bytes (128 bits) from the OS kernel's CSPRNG (`os.urandom`, the correct
+randomness source — never `random.random()`, which is predictable). `passlib`, which most FastAPI
 tutorials still recommend, is unmaintained (last release 2020) and broke against
 bcrypt ≥ 4.1. Current choices: use the `bcrypt` library directly (if bcrypt), or
 **`pwdlib`** for Argon2 (maintained by the FastAPI Users author; wraps `argon2-cffi`;
@@ -114,6 +138,8 @@ can garnish defense-in-depth; the moment a design relies on it, the design is br
 | Parameters | **pwdlib `PasswordHash.recommended()`** → argon2-cffi defaults: Argon2id, 64 MiB, t=3, p=4 | This *is* the RFC 9106 first-recommended set, above OWASP's 19 MiB minimum — a default chosen knowingly, not blindly. Accepted cost: memory-hardness is per-concurrent-hash, so sync routes × ~40 threadpool threads × 64 MiB ≈ 2.5 GB worst case — a second reason login gets rate-limited in Phase 17, and why OWASP's smaller rows exist for constrained servers |
 | JWT library | **PyJWT** | What FastAPI's docs now use; `python-jose` is unmaintained (CVEs in 2024) — outdated-tutorial trap dodged, same as passlib |
 | `sub` claim | **`user:{id}`** — DB id, prefixed | Id over email: immutable (emails change; `sub` must be stable), no PII in a publicly-decodable payload (decode ≠ verify), and PK lookup is the cheapest `get_current_user` query — Phase 5's surrogate-key lesson again. Prefix namespaces the *subject* against future non-user token audiences (FastAPI docs advice); it is NOT the access-vs-refresh distinction — that's a separate `type` claim in Phase 15 (`sub` = who it's about, same user in both). Gotcha: RFC 7519 requires `sub` be a string and PyJWT ≥ 2.10 enforces it on decode — the prefix satisfies that for free; a bare int id would fail |
+| Signing algorithm | **HS256** (symmetric HMAC-SHA256) | Decision rule: who verifies? Issuer and verifier are the same monolith → one symmetric key is simpler and faster. RS256/ES256 (asymmetric) earns its keep when *other* services must verify without being able to mint — handing them the HS256 secret would hand them forgery. Requirement it brings: the key is crypto key material, ≥256 bits of real randomness (`openssl rand -hex 32`), never a password |
+| Token on register? | **No — register returns the user; the client logs in** | Both patterns are legit: auto-login (Supabase/Firebase) kills signup friction and is safe (the register request proved the password); separate endpoints keep token issuance in one place and survive adding email verification (which must NOT hand out a usable token). Ours stays separate — spec draws it that way, and the OAuth2 flow endpoint is itself the lesson. If added later: register's last step calls the same token-minting *service* function login uses — shared service, never router-calls-router |
 | Password policy | **min 8, max 128, no composition rules** (Pydantic input schema) | NIST SP 800-63B: length is the guess-space factor Argon2's per-guess cost multiplies; composition rules add predictability, not entropy (`P@ssw0rd1`), and NIST dropped them. The *max* is a security control too: hashing is deliberately expensive, so unbounded input is a DoS lever (Django 2013: 1 MB passwords burned seconds of CPU each; fix was a 4096-byte cap). Edge-only by necessity — the DB stores the hash, so plaintext rules structurally can't be DB constraints (contrast the ₦50 CHECK) |
 | Other claims & expiry | `exp` (validated automatically by PyJWT on decode); **15 minutes** | Short expiry is the damage bound for a stateless token — exactly the window Phase 15's refresh tokens make livable. Use timezone-aware UTC (`datetime.now(timezone.utc)`) — `utcnow()` is deprecated in 3.12 and naive datetimes make expiry drift by your UTC offset |
 
@@ -319,13 +345,132 @@ own algorithm and parameters (64 MiB, t=3, p=4 — exactly `recommended()`'s), w
 `verify()` needs no configuration and how rehash-on-login migration detects outdated
 hashes. The hash documents itself.
 
-### 3) *(pending — login via OAuth2 password flow, JWT issuance, uniform `401`)*
+### 3) Config & secrets — the `.env` pipeline
+
+**New settings** (`app/core/config.py`), namespaced with a `JWT_` prefix: `jwt_secret`
+(**no default on purpose** — a misconfigured deployment must crash at startup, not sign
+tokens with something guessable; defaults are for non-secrets only), `jwt_algorithm`
+(default `HS256`), `jwt_access_token_expire_minutes` (default 15).
+
+**The secrets audit that triggered this.** `docker-compose.yml` carried
+`postgres:postgres` and sat on GitHub. Honest risk assessment: dev creds guarding a
+Postgres that only exists inside a laptop's Compose network are a convention, not a leak —
+but the *principle* matters and Phase 22 audits it. Two rules extracted: (1) the secret
+that must never touch a commit is one guarding something real — the JWT key mints admin
+tokens for *any* deployment using it; (2) **git history is forever** — moving a committed
+secret to `.env` doesn't unpublish it; the fix for a real leaked secret is *rotation*, not
+deletion.
+
+**The pipeline (one direction, three hops):**
+
+```
+.env ──read by──▶ Compose CLI (host) ──${VAR} substitution──▶ container process env ──▶ pydantic Settings
+```
+
+Compose has **two separate env mechanisms** that look alike: `${VAR}` in the YAML is
+substituted *by the CLI on the host* (auto-reading the `.env` file beside the yml);
+`environment:` on a service sets vars *inside the container*. The app's contract is
+deliberately narrow — **read process env only** (twelve-factor config): in production
+there is no `.env` file, a cloud runtime injects env vars from its secret store, and an
+app that only reads process env runs identically in both worlds. `.env` is the local way
+to feed the injector, not app input. Files: `.env` (gitignored — verified with
+`git check-ignore`), `.env.example` (committed: placeholders + the
+`openssl rand -hex 32` instruction — setup docs for a fresh clone).
+
+**Removed: pydantic's `env_file=".env"` fallback.** It's meant for host-run-without-
+Docker, but the dev bind mount (`.:/app`) ships `.env` into the container, creating an
+*accidental second reader*: if the compose `environment:` line broke, the fallback would
+silently cover it — and the breakage would surface only in Phase 22, where the prod image
+has no bind mount and no `.env`. Silent redundancy is how config bugs hide. Single path
+now: env vars come from Compose or the app doesn't boot. Consequence: compose must pass
+*every* var (all four JWT/DB lines in the api service's `environment:`).
+
+**Gotchas recorded:**
+- **Postgres applies `POSTGRES_PASSWORD` only on first init of the data volume.** The
+  existing `minimart-db-data` volume was initialized with the old creds; changing the env
+  var later does *not* change the DB password (keep values stable, or `ALTER USER` /
+  wipe the volume). Signature: mysterious `password authentication failed` after a creds
+  "rotation" that never actually happened.
+- **Empty string ≠ unset.** `JWT_ALGORITHM=${JWT_ALGORITHM}` with the var missing from
+  `.env` substitutes `""` — which is *set*, so pydantic never falls back to the code
+  default; you'd boot with an empty algorithm and die at the first `jwt.encode`. The code
+  defaults are effectively unreachable; the real defaults are what `.env.example` says.
+  Compose-native alternative: `${JWT_ALGORITHM:-HS256}` (falls back when unset), at the
+  cost of stating the default in two places.
+- Healthcheck hardcoded `-U postgres` → parameterized to `${POSTGRES_USER}` so a creds
+  change can't fail the healthcheck while the DB is healthy.
+- Env changes need a container **recreate** (`docker compose up -d`), not just reload.
+
+**Verify:** after recreate, settings load inside the container through process env alone
+(secret length 64, `HS256`, 15 min) and `/health` returns `200`.
+
+### 4) Login — the OAuth2 password flow and the JWT mint
+
+**The endpoint** (`POST /auth/login`): declares `Annotated[OAuth2PasswordRequestForm, Depends()]`
+— the bare `Depends()` uses the annotated class itself as the dependency. The form's
+`username` field carries our email (the RFC fixes the *field name*, not what it holds);
+the repo's `lower(email)` lookup makes login case-insensitive for free. Router maps
+`InvalidCredentialsError → 401` with `WWW-Authenticate: Bearer` (RFC 6750) and the
+**uniform message** — "Incorrect email or password" for *both* unknown-email and
+wrong-password, so responses reveal nothing about which emails exist (content uniformity;
+`_DUMMY_HASH` provides the timing uniformity).
+
+**The mint** (`_create_access_token`): `TokenPayload(sub=f"user:{user_id}", exp=now(UTC) + 15min)`
+→ `jwt.encode(payload.model_dump(), settings.jwt_secret, algorithm=settings.jwt_algorithm)`.
+PyJWT accepts a `datetime` for `exp` and converts it to the epoch int itself (registered-
+claim handling). Timezone-aware UTC throughout — `utcnow()` is deprecated and naive
+datetimes drift expiry by the UTC offset.
+
+**No `with self.db.begin()` in login — a decision, not an omission.** Login is a pure
+read: nothing to commit, nothing to roll back. The session's implicit read transaction is
+discarded at request teardown. The transaction boundary exists to make multi-step *writes*
+atomic; wrapping a read in one is cargo-culting the pattern.
+
+**`tokenUrl` demystified (for Phase 7's `OAuth2PasswordBearer`):** it creates no route and
+enforces nothing — it's OpenAPI metadata telling Swagger's Authorize button where to POST
+the login form. The RFC defines "token endpoint" as a role, not a path; FastAPI's tutorial
+uses `token` because that's what they named their route. Ours is `tokenUrl="auth/login"` —
+**relative, no leading slash**, so it survives being served behind a proxy path prefix.
+If it pointed at the wrong path, curl/clients/tests would all still work; only the
+`/docs` Authorize flow would break — metadata bugs only bite the docs.
+
+**Verify (all observed):** form-encoded login → `200` + token; wrong password and
+nonexistent user → *identical* `401` bodies; JSON body → `422` (the endpoint genuinely
+speaks form encoding); decoded claims `{'sub': 'user:1', 'exp': …}` with lifetime 15.0
+min; decode with a wrong key → `InvalidSignatureError` (and PyJWT warned the 12-byte fake
+key was below RFC 7518's 32-byte minimum — the library confirming the key-length
+requirement). Login with `Verify.Flow@Example.COM` casing succeeds.
 
 ## Run & verify
 
-*(pending — will cover: register → row holds an argon2 hash, never plaintext; login →
-JWT decodes to the right user with an expiry; duplicate register → `409`; wrong
-credentials → `401` with no hint which part failed)*
+With the stack up (`docker compose up`):
+
+```bash
+# register: 201, no hash in response, email lowercased
+curl -i -X POST localhost:8000/auth/register -H 'Content-Type: application/json' \
+  -d '{"email":"You@Example.com","password":"longenough1"}'
+
+# duplicate (any casing): 409 domain message
+curl -i -X POST localhost:8000/auth/register -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"longenough1"}'
+
+# the row holds an argon2 hash, never plaintext (note PHC params match recommended())
+docker compose exec db psql -U postgres -d minimart \
+  -c "SELECT email, left(password_hash, 31) FROM users;"
+# → $argon2id$v=19$m=65536,t=3,p=4$
+
+# login is FORM-encoded (the OAuth2 password flow), not JSON
+curl -i -X POST localhost:8000/auth/login -d 'username=you@example.com&password=longenough1'
+# → 200 {"access_token": "...", "token_type": "bearer"}
+
+# wrong password / unknown email: identical 401s + WWW-Authenticate: Bearer
+curl -i -X POST localhost:8000/auth/login -d 'username=you@example.com&password=nope-nope1'
+curl -i -X POST localhost:8000/auth/login -d 'username=ghost@example.com&password=whatever1'
+
+# decode ≠ verify: anyone can read the payload (sub, exp) without the key
+python3 -c "import base64,json,sys; t='<paste token>'; \
+print(json.loads(base64.urlsafe_b64decode(t.split('.')[1] + '==')))"
+```
 
 ## Troubleshooting (real issues we hit)
 
@@ -353,6 +498,16 @@ credentials → `401` with no hint which part failed)*
   the model for products, and auth is where they deliberately diverge. Fix: the standalone
   persistence schema (see step 2). The inheritance attempt (`UserCreateSave(UserCreate)`)
   reproduces the same crash — the child still carries `password`.
+- **The "fix" that was dead code: a `UserLogin` schema nobody called.** Login needed
+  `.strip()` on the email; the attempted fix added a `UserLogin` schema with a normalizer —
+  but the login route's input is the OAuth2 *form*, not JSON, so the schema had zero
+  callers and the trailing-space bug lived on. Two lessons: (1) grep for callers before
+  believing a fix — dead code wears a fix's clothes; (2) the schema route is the *wrong
+  tool* here anyway: a Pydantic model constructed manually (outside FastAPI's request-body
+  machinery) raises `ValidationError` as a plain exception → **500, not 422**; and login
+  shouldn't validate email *format* at all — a malformed email deserves the same uniform
+  `401` as any unknown user. Landed fix: one `email.strip().lower()` line at the top of
+  the service's `login()` — the service is the natural door when there's no schema at it.
 - **Constraint-name typo made duplicates a 500.** The discrimination checked
   `"uq_user_email"`; the index is `uq_users_email` (plural). Every non-duplicate request
   worked, so the code *read* correct — the miss only surfaced on the 409 path, falling
@@ -362,6 +517,52 @@ credentials → `401` with no hint which part failed)*
   *IntegrityError discrimination that "never matches" → diff the string against the
   constraint name in the actual Postgres error DETAIL.*
 
+## Concepts that confused me (and the plain-English answer)
+
+Each of these has a full worked treatment in the step noted — this is the recall sheet.
+
+- **"Isn't the salt the number of hashing rounds?"** No — that's the *work factor*
+  (`m`/`t`/`p`). The salt is random bytes stored *in plaintext inside the hash string*;
+  its power is uniqueness, not secrecy: it makes precomputed (rainbow-table) attacks
+  worthless because the attacker's tables were built without your salts. (Step 0.)
+- **"After `flush()`, is the row in the DB or not?"** Yes — executed on the server,
+  constraints fire (that's where `IntegrityError` comes from) — but inside the open
+  transaction: invisible to everyone else and erased by rollback. `add()` = photocopy in
+  the session; `flush()` = executed, transaction-private; `COMMIT` = permanent and public.
+  (Step 2.)
+- **"Why `db.refresh(user)` after commit?"** Commit stamps every loaded object "possibly
+  outdated" (`expire_on_commit=True`); the refresh is one PK SELECT that clears the stamp —
+  it loads nothing new. Alternative: build the response DTO *before* commit and skip it.
+  (Step 2.)
+- **"`UNIQUE INDEX ON users (lower(email))` reads like indexing a column that doesn't
+  exist."** An index is a sorted structure of *values*, and the value can be any computed
+  expression — a bare column is just the simplest case. Postgres files `lower(email)` at
+  write time; UNIQUE applies to what's filed. Queries must repeat the expression to use it.
+  (Step 1.)
+- **"Shouldn't everything be controlled by `.env`?"** It is — indirectly, by design:
+  `.env` feeds Compose, Compose feeds the container's process env, the app reads *only*
+  process env. That narrow contract is what makes dev and prod identical (prod has no
+  `.env`; a runtime injects the vars). (Step 3.)
+- **"Must `tokenUrl` be `/token`?"** No — it's OpenAPI metadata pointing Swagger's
+  Authorize button at wherever *your* login route lives (`auth/login`, relative). Wrong
+  value breaks only `/docs`, nothing else. (Step 4.)
+- **"So how do you log out a JWT?"** You can't — there's no server-side record to delete
+  (even a password change doesn't kill a live token; nothing in it depends on the
+  password). The layers: short expiry bounds passive damage → refresh tokens (stateful,
+  revocable) make short expiry livable → a Redis denylist kills tokens *now*. Direction
+  matters: the denylist **re-introduces state** — statelessness is what we already have
+  and are spending back. Built in Phase 15.
+- **"15 minutes still feels long — a stolen token can do damage."** Correct, and the
+  industry answer isn't user education (the one defense serious systems never budget on) —
+  it's **step-up authentication**: destructive actions (change email, add SSH key,
+  transfer money) demand fresh credentials even from a valid session (GitHub "sudo mode",
+  bank re-auth). A token proves you logged in *recently*; dangerous actions should prove
+  you're at the keyboard *now*. Named, not built — out of MiniMart's scope on purpose.
+- **"Would an index on `is_admin` help?"** No — a boolean matches ~half the table, the
+  planner prefers a Seq Scan and ignores it, and no query here ever filters by it (the
+  admin check reads a row already fetched by PK). Exception worth naming: rare value +
+  real query → partial index on the rare rows. (Step 1.)
+
 ## Interview talking point
 
 "We hash passwords and *encrypt* nothing — except that's exactly backwards for a pepper:
@@ -369,3 +570,10 @@ Dropbox encrypts the finished hash with a global pepper *because* encryption is
 reversible, which is what makes the pepper rotatable after a leak. And our auth mechanism
 is fully public — it's in the OpenAPI docs. That's Kerckhoffs's principle: the security
 lives in the Argon2 cost and the signing key, not in obscurity."
+
+And the revocation follow-up, rehearsed cold: "Stateless JWTs are verified by signature
+alone — no server-side record — so there's nothing to delete: I can't revoke an unexpired
+token, and even a password change doesn't kill it. My layers: 15-minute expiry caps
+passive damage; refresh tokens — stateful, revocable — make that livable; a self-expiring
+Redis denylist handles 'log them out *now*'. Each layer deliberately re-spends a little of
+the statelessness I bought."

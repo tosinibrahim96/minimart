@@ -43,7 +43,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 ### Part B — Identity & access
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
-| 6 | Users & authentication | Hashing, OAuth2 flow, JWT | ◐ |
+| 6 | Users & authentication | Hashing, OAuth2 flow, JWT | ☑ |
 | 7 | Authorization | `get_current_user`, roles/scopes | ☐ |
 
 ### Part C — The transactional core
@@ -340,10 +340,10 @@ Phases with no assigned reading (7/8/12/13b/14/18/20–23) build from the spec a
 | POST | `/auth/login` | none | `200` + token | `401` |
 
 **Acceptance criteria:**
-- [ ] The users table holds hashes, never plaintext.
-- [ ] Login returns a JWT decoding to the right user with an expiry.
-- [ ] Register response never includes the password/hash.
-- [ ] Duplicate registration → `409`, not a raw DB error.
+- [x] The users table holds hashes, never plaintext.
+- [x] Login returns a JWT decoding to the right user with an expiry.
+- [x] Register response never includes the password/hash.
+- [x] Duplicate registration → `409`, not a raw DB error.
 
 **Self-check / interview questions:**
 - Why hash *and salt* — what attack does the salt defeat?
