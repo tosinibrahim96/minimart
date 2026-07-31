@@ -8,7 +8,10 @@ from pwdlib import PasswordHash
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.exceptions import InvalidCredentialsError, UserAlreadyExistsError
+from app.auth.exceptions import (
+    InvalidCredentialsError,
+    UserAlreadyExistsError,
+)
 from app.auth.models import User
 from app.auth.repository import UserRepository
 from app.auth.schemas import (
@@ -36,26 +39,34 @@ class AuthService:
         self.password_hash = password_hash
 
     def create_account(self, data: UserCreate) -> UserRead:
-        with self.db.begin():
-            try:
-                password_hash = self._get_password_hash(data.password)
-                user = self.user_repository.create_user(
-                    UserCreateSave(email=data.email, password_hash=password_hash)
-                )
-            except IntegrityError as e:
-                if self._constraint_name(e) == "uq_users_email":
-                    raise UserAlreadyExistsError(
-                        f"User with email {data.email} already exists"
-                    ) from e
-                raise
-        self.db.refresh(user)
-        return UserRead.model_validate(user)
+        try:
+            password_hash = self._get_password_hash(data.password)
+            user = self.user_repository.create_user(
+                UserCreateSave(email=data.email, password_hash=password_hash)
+            )
+            user_read = UserRead.model_validate(user)
+            self.db.commit()
+        except IntegrityError as e:
+            if self._constraint_name(e) == "uq_users_email":
+                raise UserAlreadyExistsError(
+                    f"User with email {data.email} already exists"
+                ) from e
+            raise
+        return user_read
 
     def login(self, email: str, password: str) -> TokenResponse:
         user = self._authenticate(email, password)
         if user is None:
             raise InvalidCredentialsError("Incorrect email or password")
-        return TokenResponse(access_token=self._create_access_token(user.id), token_type="bearer")
+        return TokenResponse(
+            access_token=self._create_access_token(user.id),
+            token_type="bearer",
+            expires_in=settings.jwt_access_token_expire_minutes * 60,
+        )
+
+    def update_user_is_admin(self, user_id: int, is_admin: bool):
+        self.user_repository.update_user_is_admin(user_id, is_admin)
+        self.db.commit()
 
     def _get_password_hash(self, password: str) -> str:
         return self.password_hash.hash(password)
@@ -68,15 +79,19 @@ class AuthService:
         user = self.user_repository.get_user_by_email(email)
         if user is None:
             self._verify_password(password, _DUMMY_HASH)
-            return
+            return None
         if not self._verify_password(password, user.password_hash):
-            return
+            return None
         return user
 
     def _create_access_token(self, user_id: int) -> str:
-        expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
+        expire = datetime.now(UTC) + timedelta(
+            minutes=settings.jwt_access_token_expire_minutes
+        )
         payload = TokenPayload(sub=f"user:{user_id}", exp=expire)
-        encoded_jwt = jwt.encode(payload.model_dump(), settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        encoded_jwt = jwt.encode(
+            payload.model_dump(), settings.jwt_secret, algorithm=settings.jwt_algorithm
+        )
         return encoded_jwt
 
     @staticmethod
