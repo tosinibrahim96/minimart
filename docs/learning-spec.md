@@ -44,7 +44,7 @@ Status ladder for each phase: `☐ Not started` → `◐ In progress` → `☑ B
 | # | Phase | Core concept | Status |
 |---|-------|--------------|--------|
 | 6 | Users & authentication | Hashing, OAuth2 flow, JWT | ☑ |
-| 7 | Authorization | `get_current_user`, roles/scopes | ☐ |
+| 7 | Authorization | `get_current_user`, roles/scopes | ☑ |
 
 ### Part C — The transactional core
 | # | Phase | Core concept | Status |
@@ -369,9 +369,9 @@ Phases with no assigned reading (7/8/12/13b/14/18/20–23) build from the spec a
 | POST | `/products` | admin | `201` | `401`, `403` |
 
 **Acceptance criteria:**
-- [ ] No token → `401`; non-admin on admin route → `403`.
-- [ ] `current_user` is injected via `Depends`, not parsed in each route.
-- [ ] The admin check is a separate dependency layered on the auth one (composition, not copy-paste).
+- [x] No token → `401`; non-admin on admin route → `403`.
+- [x] `current_user` is injected via `Depends`, not parsed in each route.
+- [x] The admin check is a separate dependency layered on the auth one (composition, not copy-paste).
 
 **Self-check / interview questions:**
 - Precisely, when is it `401` vs `403`?
