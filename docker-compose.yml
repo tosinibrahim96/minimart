@@ -11,6 +11,8 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
       - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     volumes:
       - .:/app             # mount the whole project: app/ AND tests/
     depends_on:
