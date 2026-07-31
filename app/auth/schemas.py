@@ -9,10 +9,13 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+    expires_in: int
+
 
 class TokenPayload(BaseModel):
     sub: str
     exp: datetime
+
 
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)

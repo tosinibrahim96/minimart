@@ -3,8 +3,9 @@ results/domain errors to status codes. Decides nothing on its own."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.auth.dependencies import get_admin_user
 from app.categories.exceptions import CategoryNotFoundError
 from app.common.pagination import Page
 from app.products.dependencies import ProductServiceDep
@@ -35,7 +36,12 @@ def get_product(product_id: int, service: ProductServiceDep):
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.post("", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    dependencies=[Depends(get_admin_user)],
+    response_model=ProductRead,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_product(data: ProductCreate, service: ProductServiceDep):
     try:
         return service.create_product(data)
@@ -47,8 +53,17 @@ def create_product(data: ProductCreate, service: ProductServiceDep):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
 
 
-@router.patch("/{product_id}", response_model=ProductRead)
-def update_product(product_id: int, data: ProductUpdate, service: ProductServiceDep):
+@router.patch(
+    "/{product_id}",
+    dependencies=[Depends(get_admin_user)],
+    response_model=ProductRead,
+    status_code=status.HTTP_200_OK,
+)
+def update_product(
+    product_id: int,
+    data: ProductUpdate,
+    service: ProductServiceDep,
+):
     try:
         return service.update_product(product_id, data)
     except ProductNotFoundError as e:
@@ -59,7 +74,11 @@ def update_product(product_id: int, data: ProductUpdate, service: ProductService
         ) from e
 
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{product_id}",
+    dependencies=[Depends(get_admin_user)],
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 def delete_product(product_id: int, service: ProductServiceDep):
     try:
         service.delete_product(product_id)

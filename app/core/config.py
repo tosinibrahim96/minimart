@@ -13,6 +13,8 @@ class Settings(BaseSettings):
         15  # populated from the JWT_ACCESS_TOKEN_EXPIRE_MINUTES env var
     )
     jwt_algorithm: str = "HS256"  # populated from the JWT_ALGORITHM env var
+    admin_email: str | None = None  # populated from the ADMIN_EMAIL env var
+    admin_password: str | None = None  # populated from the ADMIN_PASSWORD env var
 
 
 settings = Settings()  # one instance, imported wherever config is needed

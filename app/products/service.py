@@ -12,7 +12,12 @@ from app.categories.repository import CategoryRepository
 from app.products.exceptions import DuplicateSKUError, ProductNotFoundError
 from app.products.models import Product
 from app.products.repository import ProductRepository
-from app.products.schemas import ProductCreate, ProductListParams, ProductUpdate
+from app.products.schemas import (
+    ProductCreate,
+    ProductListParams,
+    ProductRead,
+    ProductUpdate,
+)
 
 # Crockford base32: no I, L, O, U — nothing a human can misread aloud
 _SKU_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -44,25 +49,27 @@ class ProductService:
             raise ProductNotFoundError(f"Product with id {product_id} not found")
         return product
 
-    def create_product(self, data: ProductCreate) -> Product:
+    def create_product(self, data: ProductCreate) -> ProductRead:
         has_sku_from_customer = data.sku is not None
 
         for _ in range(_SKU_MAX_ATTEMPTS):
             if not has_sku_from_customer:
                 data.sku = self._generate_sku()
             try:
-                with self.db.begin():
-                    category = self.category_repository.get_category(data.category_id)
-                    if category is None:
-                        raise CategoryNotFoundError(
-                            f"Category with id {data.category_id} not found"
-                        )
-                    new_product = self.product_repository.create_product(data)
+                category = self.category_repository.get_category(data.category_id)
+                if category is None:
+                    raise CategoryNotFoundError(
+                        f"Category with id {data.category_id} not found"
+                    )
+                new_product = self.product_repository.create_product(data)
+                product_read = ProductRead.model_validate(new_product)
+                self.db.commit()
             except IntegrityError as e:
                 match self._constraint_name(e):
                     case "uq_products_sku" if has_sku_from_customer:
                         raise DuplicateSKUError(f"SKU {data.sku} already exists") from e
                     case "uq_products_sku":
+                        self.db.rollback()
                         continue
                     case "fk_products_category_id_categories":
                         raise CategoryNotFoundError(
@@ -71,34 +78,33 @@ class ProductService:
                     case _:
                         raise
             else:
-                self.db.refresh(new_product)
-                return new_product
+                return product_read
         raise RuntimeError(
             f"Could not generate a unique SKU after {_SKU_MAX_ATTEMPTS} attempts"
         )
 
-    def update_product(self, product_id: int, data: ProductUpdate) -> Product:
-        with self.db.begin():
-            product = self.get_product(product_id)
-            if data.category_id is not None:
-                category = self.category_repository.get_category(data.category_id)
-                if category is None:
-                    raise CategoryNotFoundError(
-                        f"Category with id {data.category_id} not found"
-                    )
-            try:
-                product = self.product_repository.update_product(product, data)
-            except IntegrityError as e:
+    def update_product(self, product_id: int, data: ProductUpdate) -> ProductRead:
+        product = self.get_product(product_id)
+        if data.category_id is not None:
+            category = self.category_repository.get_category(data.category_id)
+            if category is None:
                 raise CategoryNotFoundError(
                     f"Category with id {data.category_id} not found"
-                ) from e
-        self.db.refresh(product)
-        return product
+                )
+        try:
+            product = self.product_repository.update_product(product, data)
+            product_read = ProductRead.model_validate(product)
+            self.db.commit()
+        except IntegrityError as e:
+            raise CategoryNotFoundError(
+                f"Category with id {data.category_id} not found"
+            ) from e
+        return product_read
 
     def delete_product(self, product_id: int) -> None:
-        with self.db.begin():
-            product = self.get_product(product_id)
-            self.product_repository.soft_delete(product)
+        product = self.get_product(product_id)
+        self.product_repository.soft_delete(product)
+        self.db.commit()
 
     def _generate_sku(self) -> str:
         code = "".join(secrets.choice(_SKU_ALPHABET) for _ in range(_SKU_LENGTH))

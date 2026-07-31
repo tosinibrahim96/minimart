@@ -3,8 +3,15 @@ results/domain errors to status codes. Decides nothing on its own."""
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.auth.dependencies import AuthServiceDep, Oauth2PasswordRequestFormDep
-from app.auth.exceptions import InvalidCredentialsError, UserAlreadyExistsError
+from app.auth.dependencies import (
+    AuthServiceDep,
+    CurrentUserDep,
+    Oauth2PasswordRequestFormDep,
+)
+from app.auth.exceptions import (
+    InvalidCredentialsError,
+    UserAlreadyExistsError,
+)
 from app.auth.schemas import TokenResponse, UserCreate, UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -28,3 +35,8 @@ def login(data: Oauth2PasswordRequestFormDep, service: AuthServiceDep) -> TokenR
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
+
+
+@router.get("/me", response_model=UserRead, status_code=status.HTTP_200_OK)
+def me(current_user: CurrentUserDep) -> UserRead:
+    return current_user
