@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 
+from app.auth.exceptions import ForbiddenError, InvalidTokenError
 from app.auth.router import router as auth_router
 from app.categories.router import router as categories_router
 from app.core.database import engine
@@ -18,6 +20,29 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="MiniMart API", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(InvalidTokenError)
+async def invalid_token_error_handler(request: Request, exc: InvalidTokenError):
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": str(exc)},
+        headers={
+            "WWW-Authenticate": f'Bearer error="invalid_token", error_description="{str(exc)}"'
+        },
+    )
+
+
+@app.exception_handler(ForbiddenError)
+async def forbidden_error_handler(request: Request, exc: ForbiddenError):
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content={"detail": str(exc)},
+        headers={
+            "WWW-Authenticate": f'Bearer error="insufficient_scope", error_description="{str(exc)}"'
+        },
+    )
+
 
 app.include_router(categories_router)
 app.include_router(products_router)
